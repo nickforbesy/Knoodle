@@ -88,12 +88,13 @@ std::vector<Point3D> buildStarPolygon(
     polygon.reserve(3 * n + 1);
 
     for (int i = 0; i < n; ++i) {
-        const double theta = twoPi * i / n;
-        const double z = heightFromValue(perm[i], n, heightScale);
+        const double theta    = twoPi * i / n;
+        const double zBefore  = heightFromValue(perm[(i - 1 + n) % n], n, heightScale);
+        const double zAfter   = heightFromValue(perm[i], n, heightScale);
 
-        Point3D centerBefore = polarPoint(innerRadius, theta - angleOffset, z);
+        Point3D centerBefore = polarPoint(innerRadius, theta - angleOffset, zBefore);
         Point3D outer        = polarPoint(outerRadius, theta, 0.0);
-        Point3D centerAfter  = polarPoint(innerRadius, theta + angleOffset, z);
+        Point3D centerAfter  = polarPoint(innerRadius, theta + angleOffset, zAfter);
 
         polygon.push_back(centerBefore);
         polygon.push_back(outer);
