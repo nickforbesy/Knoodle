@@ -1,0 +1,20 @@
+knoodlesimplify in stream mode, expect input from stdin, will direct output to stdout
+
+=== Processing Report: stdin ===
+
+Simplification: Reapr (max attempts: 25)
+
+Input:
+  Total crossings: 78
+  3D vertices: 40
+
+Output:
+  Total crossings: 7
+  Summands: 1
+  Proven minimal: 1/1 (100.0 %)
+  Simplification factor: 11.15x
+
+Timing:
+  Input:          1.7608e-04 s
+  Simplification: 1.0945e-04 s
+  Output:         1.4103e-05 s

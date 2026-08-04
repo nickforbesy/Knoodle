@@ -1,0 +1,925 @@
+% Compile with:  pdflatex thesis.tex   (twice, for the TOC)
+\documentclass[11pt,oneside]{report}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{calc,arrows.meta,decorations.markings}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue!50!black,
+  pdftitle={Petal Knots and Polygonal Embeddings},
+  pdfauthor={Nick Forbes-Young}
+}
+
+% ---------- theorem environments ----------
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+
+% ---------- math macros ----------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\bbS}{\mathbb{S}}
+\newcommand{\PD}{\mathrm{PD}}
+\DeclareMathOperator{\Aut}{Aut}
+\DeclareMathOperator{\sign}{sign}
+\DeclareMathOperator{\Sym}{Sym}
+\newcommand{\pd}{\mathrm{pd}}
+
+% ---------- code listings ----------
+\definecolor{codegray}{rgb}{0.96,0.96,0.96}
+\definecolor{codeblue}{rgb}{0.20,0.30,0.60}
+\definecolor{codegreen}{rgb}{0.13,0.42,0.18}
+\lstdefinestyle{cpp}{
+  language=C++,
+  backgroundcolor=\color{codegray},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codeblue}\bfseries,
+  commentstyle=\color{codegreen}\itshape,
+  showstringspaces=false,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  frame=single,
+  framerule=0pt,
+  xleftmargin=10pt,
+  framexleftmargin=10pt,
+  belowskip=0pt,
+  aboveskip=4pt
+}
+\lstdefinestyle{shell}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codegray},
+  breaklines=true,
+  frame=single,
+  framerule=0pt,
+  xleftmargin=10pt,
+  framexleftmargin=10pt
+}
+
+% ---------- title ----------
+\title{\Huge\bfseries Petal Knots and Polygonal Embeddings\\[0.6em]
+\large A Progress Report Toward a\\ Permutation-to-Polygon Pipeline}
+\author{Nick Forbes-Young}
+\date{June 2026}
+
+\begin{document}
+
+\frontmatter
+\pagenumbering{roman}
+\maketitle
+
+\thispagestyle{empty}
+\vfill
+\noindent
+\textit{This document is a milestone summary of work in progress. It collects
+the knot-theoretic background, software environment, and locally written code
+that have been assembled so far to drive a single workflow: starting from a
+petal permutation, generating a polygonal embedding of the corresponding petal
+knot, suitable for downstream simplification and analysis.}
+\vfill
+
+\tableofcontents
+
+\chapter*{Preface}
+\addcontentsline{toc}{chapter}{Preface}
+
+The aim of this work is concrete and modest: given a petal permutation $\pi$,
+produce a clean 3D polygonal embedding of the petal knot it encodes, so that
+downstream tools can simplify and study it. That sentence hides a stack of
+ideas. Knot equivalence is invariant under deformation of three-dimensional
+embeddings; the petal projection presumes a non-trivial way to read a knot
+type out of a single permutation; and the whole construction has to be made
+effective by a program that can be run, checked, and built upon.
+
+The contributors to this stack are several. Schumacher and Cantarella's
+\emph{Knoodle} library provides the surrounding machinery: simplification of
+planar diagrams via the \texttt{PlanarDiagram} class and the \textsc{Reapr}
+algorithm, generation of self-avoiding polygons via \texttt{ClisbyTree}, and,
+in version 1.0.2, a trio of command-line tools --- \texttt{knoodlesimplify},
+\texttt{knoodleidentify}, and \texttt{knoodledraw} --- that reduce, name, and
+render a 3D polygon respectively. The locally written code in this directory
+adds the petal construction on top of that foundation, together with
+sampling and cross-validation tools that use the identification step to
+tabulate the knot types produced by whole families of petal permutations.
+
+The chapters that follow lay out the material in the order it is needed.
+Chapter~\ref{chap:background} reviews enough knot theory to read the rest of
+the document: knots, equivalence, diagrams, Reidemeister moves, and PD codes.
+Chapter~\ref{chap:petal} introduces petal knots and petal permutations.
+Chapter~\ref{chap:knoodle} describes the parts of Knoodle we depend on.
+Chapter~\ref{chap:petalstar} describes the locally written code that
+connects a permutation to a polygon. Chapter~\ref{chap:enum} then closes the
+loop with the sampling and identification tools: it introduces the compact
+knot notation we use, describes three enumeration programs corresponding to
+three progressively stronger equivalences on petal permutations, reports the
+cross-validation against an independent reference, and records a small
+conjecture about constant-difference permutations that emerged along the way.
+
+\mainmatter
+\pagenumbering{arabic}
+
+\chapter{Introduction}\label{chap:intro}
+
+A knot, classically, is the image of an embedding $K \colon \bbS^1 \hookrightarrow
+\R^3$, considered up to ambient isotopy. The interest of the subject is that
+this image is a one-dimensional object floating in three space, with rich
+combinatorial shadows. The standard combinatorial shadow is the
+\emph{knot diagram}: a planar projection of the knot in which transverse
+double points are decorated with over/under information. From a diagram we
+can attempt to read off invariants, and from invariants we can attempt to
+distinguish knots.
+
+The computational construction we focus on here is straightforward to state.
+We have:
+\begin{enumerate}[label=(\roman*)]
+\item a notion of \emph{petal knot}, encoded by a permutation $\pi$ of $\{1, \dots, n\}$ with $n$ odd;
+\item a routine that turns $\pi$ into a polygonal embedding $K(\pi) \subset \R^3$;
+\item the Knoodle library, which simplifies the resulting 3D polygon to a
+planar diagram code (PD code) and looks it up against a table of known knots
+to produce a named knot type.
+\end{enumerate}
+The full pipeline is therefore
+\[
+\pi \;\xrightarrow{\;\texttt{petal\_star\_clean}\;}\; K(\pi)
+     \;\xrightarrow{\;\texttt{knoodlesimplify}\;}\; \PD(K(\pi))
+     \;\xrightarrow{\;\texttt{knoodleidentify}\;}\; \text{knot name}.
+\]
+The current state of this pipeline is summarized in Chapter~\ref{chap:state}.
+
+\chapter{Knot-Theoretic Background}\label{chap:background}
+
+This chapter develops the language we use in the rest of the document. The
+exposition is informal but precise enough to make the algorithms exact. The
+standard references are Rolfsen~\cite{Rolfsen} and Kawauchi~\cite{Kawauchi};
+for the computational viewpoint, Murasugi~\cite{Murasugi} and Lickorish~\cite{Lickorish}.
+
+\section{Knots, links, and equivalence}
+
+\begin{definition}
+A \emph{knot} is a smooth (or piecewise-linear) embedding $K \colon \bbS^1 \to \R^3$.
+A \emph{link} of $\ell$ components is a smooth embedding of $\ell$ disjoint
+copies of $\bbS^1$. Two knots $K_0, K_1$ are \emph{equivalent} (or
+\emph{ambient isotopic}) if there exists a continuous family
+$h_t \colon \R^3 \to \R^3$, $t \in [0,1]$, of homeomorphisms with $h_0 = \mathrm{id}$
+and $h_1 \circ K_0 = K_1$.
+\end{definition}
+
+By a knot $K$ we typically mean its equivalence class. The simplest knot is the
+\emph{unknot}, equivalent to the standard circle in a plane. Two knots that
+look very different may be equivalent, and one of the central questions of
+knot theory is to decide, given two diagrams, whether they represent the same
+knot.
+
+\section{Knot diagrams}
+
+A \emph{regular projection} of a knot $K \subset \R^3$ is a projection
+$p \colon \R^3 \to \R^2$ whose image $p(K)$ is a closed curve with finitely many
+self-intersections, each of which is a transverse double point. A
+\emph{knot diagram} is a regular projection augmented with over/under data at
+every crossing: at each double point, one of the two strands is marked as
+passing \emph{over} the other.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.8, line width=0.8pt]
+% trefoil
+\draw[white,line width=4pt] (0,1.4) .. controls (-1.4,1.4) and (-1.4,-1) .. (0,-1)
+   .. controls (1.4,-1) and (1.4,0.6) .. (0,0.6);
+\draw (0,1.4) .. controls (-1.4,1.4) and (-1.4,-1) .. (0,-1)
+   .. controls (1.4,-1) and (1.4,0.6) .. (0,0.6);
+\draw[white,line width=4pt] (0,0.6) .. controls (-1.4,0.6) and (-1.4,-0.7) .. (0,-0.7)
+   .. controls (1.4,-0.7) and (1.4,1.1) .. (0,1.1);
+\draw (0,0.6) .. controls (-1.4,0.6) and (-1.4,-0.7) .. (0,-0.7)
+   .. controls (1.4,-0.7) and (1.4,1.1) .. (0,1.1);
+\draw[white,line width=4pt] (0,1.1) .. controls (-0.6,1.1) and (-0.6,1.4) .. (0,1.4);
+\draw (0,1.1) .. controls (-0.6,1.1) and (-0.6,1.4) .. (0,1.4);
+\node at (3.5,0) {trefoil ($3_1$)};
+\end{tikzpicture}
+\caption{The trefoil knot $3_1$, the simplest nontrivial knot.}
+\end{figure}
+
+Two diagrams represent equivalent knots if and only if one can be transformed
+into the other by ambient isotopy of the plane and a finite sequence of
+local moves called \emph{Reidemeister moves}.
+
+\begin{theorem}[Reidemeister]
+Two knot diagrams represent equivalent knots if and only if they are related
+by a finite sequence of moves of types I, II, and III (Figure~\ref{fig:reide}),
+together with planar isotopies.
+\end{theorem}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.7,line width=0.6pt]
+\draw (0,0) -- (1.5,0); \node at (0.75,-0.6) {(I)};
+\draw[->] (1.7,0) -- (2.7,0);
+\draw (2.9,0) .. controls (3.4,0) and (3.6,0.4) .. (3.8,0)
+        .. controls (4,-0.4) and (4.2,0) .. (4.7,0);
+\begin{scope}[xshift=6cm]
+\draw (0,-0.4) -- (1.5,-0.4); \draw (0,0.4) -- (1.5,0.4);
+\node at (0.75,-1.0) {(II)};
+\draw[->] (1.7,0) -- (2.7,0);
+\draw (2.9,0.4) .. controls (3.6,0.4) and (3.6,-0.4) .. (4.3,-0.4);
+\draw[white,line width=3pt] (2.9,-0.4) .. controls (3.6,-0.4) and (3.6,0.4) .. (4.3,0.4);
+\draw (2.9,-0.4) .. controls (3.6,-0.4) and (3.6,0.4) .. (4.3,0.4);
+\end{scope}
+\begin{scope}[xshift=12cm]
+\node at (1,-1.0) {(III)};
+\draw (0,0) -- (2,0); \draw (0,0.8) -- (2,0.8);
+\draw[white,line width=3pt] (0.3,-0.5) -- (1.7,1.3);
+\draw (0.3,-0.5) -- (1.7,1.3);
+\end{scope}
+\end{tikzpicture}
+\caption{Schematic Reidemeister moves I, II, III. Each is the local picture of
+an allowed transformation between equivalent knot diagrams.}
+\label{fig:reide}
+\end{figure}
+
+This theorem reduces the topological question of knot equivalence to a purely
+combinatorial one. Unfortunately the combinatorics is still hard: the number
+of Reidemeister moves needed to relate two equivalent diagrams is not bounded
+by any reasonable function of their crossing counts.
+
+\section{PD codes}
+
+To put a knot diagram into a computer we use a \emph{planar diagram code} (PD
+code). The standard convention, which Knoodle and our tools follow, is the
+one used by the KnotTheory package and by Regina:
+
+\begin{definition}\label{def:pdcode}
+Fix an orientation of the knot. Number the arcs of the diagram --- the maximal
+segments of the curve between successive under-crossings --- by $1, 2, \dots, n$
+in the order they are encountered when traversing the knot once. (Equivalently,
+the curve is broken into $2n$ \emph{edges} between consecutive crossing
+incidences, labelled $1$ through $2n$.) A PD code for an $n$-crossing diagram
+is the list
+\[
+\PD = \bigl[ X[a_1,b_1,c_1,d_1], X[a_2,b_2,c_2,d_2], \dots, X[a_n,b_n,c_n,d_n] \bigr],
+\]
+where at each crossing the four edges incident to the crossing are listed in
+counter-clockwise order beginning with the incoming under-edge. A
+\emph{signed} PD code appends $\pm 1$ to each crossing indicating handedness.
+\end{definition}
+
+\begin{example}\label{ex:trefoilpd}
+The right-handed trefoil $3_1$ has PD code
+\[
+\PD = \bigl[ X[1,4,2,5], X[3,6,4,1], X[5,2,6,3] \bigr],
+\]
+with all three crossings positive. The over-strand at the crossing $X[1,4,2,5]$
+runs from edge $4$ to edge $5$ (so edges $4$ and $5$ belong to the same arc);
+the under-strand runs from edge $1$ to edge $2$.
+\end{example}
+
+\section{Knot invariants}
+
+A \emph{knot invariant} is a function on knot diagrams whose value depends only
+on the underlying knot type. The classical invariants include the
+\emph{crossing number} (the minimum number of crossings over all diagrams of
+$K$), the \emph{Alexander polynomial} $\Delta_K(t) \in \Z[t,t^{-1}]$, the
+\emph{Jones polynomial}, and various determinants, signatures, and
+homological constructions (Khovanov, Heegaard--Floer). For the present
+report we will not need any of these in detail; we only need to know that
+they exist and that they are computed from PD codes by Knoodle's downstream
+tools.
+
+\chapter{Petal Knots}\label{chap:petal}
+
+The construction of interest in this work is the \emph{petal projection}, due
+to Adams \emph{et al.}~\cite{Adams}. A petal projection encodes a knot by a
+single permutation. This makes it especially convenient as a parameterization
+of an enumeration problem: every knot type appears for some permutation, and
+many permutations give the same knot.
+
+\section{Definition}
+
+\begin{definition}
+A \emph{petal projection} of a knot is a diagram in the plane consisting of $n$
+straight chords (\emph{petals}) emanating from a common central point, joined
+into a single closed curve in a prescribed cyclic order. Each pair of petals
+crosses exactly once, and all crossings occur at the central point. The
+projection is decorated by a height function $h \colon \{1, \dots, n\} \to \R$
+that assigns each petal a unique vertical level; the over/under data at the
+central crossings is read from this function.
+\end{definition}
+
+To resolve the geometric degeneracy of $n$ chords meeting at one point we
+shift each chord very slightly off-centre so that they cross pairwise. This is
+exactly what the construction in Chapter~\ref{chap:petalstar} does.
+
+\begin{theorem}[Adams, Crawford, DeMeo, et al.~\cite{Adams}]
+Every knot admits a petal projection. The minimum number of petals required
+is an invariant of the knot, called its \emph{petal number}.
+\end{theorem}
+
+\section{Petal permutations}
+
+If we fix the cyclic ordering of the petals (the order in which the closed
+curve visits them) and the height function takes distinct integer values
+$1, 2, \dots, n$, the petal projection is completely determined by the
+permutation $\pi \in \Sym(n)$ where $\pi(t)$ is the height of the $t$-th
+petal in traversal order.
+
+\begin{definition}
+A \emph{petal permutation} of odd length $n$ is a permutation
+$\pi = (\pi_1, \dots, \pi_n)$ of $\{1, \dots, n\}$, where $n$ is odd.
+\end{definition}
+
+The oddness condition reflects the standard convention that the traversal step
+$s = (n+1)/2$ used to visit petals in turn must be coprime to $n$; this is
+automatic for odd $n$ and ensures every petal is visited exactly once.
+
+Two permutations may give the same knot. Operations preserving the knot type
+include cyclic shift (which simply re-labels which strand we call ``first''),
+reversal (reversal of the orientation), and inversion (relabelling heights).
+The composition of these generates a symmetry group of order up to $4n$ acting
+on petal permutations.
+
+\begin{example}\label{ex:permops}
+For $\pi = (2,4,1,5,3)$ of length $5$:
+\begin{itemize}[leftmargin=2em]
+\item \textbf{reverse}: $(3,5,1,4,2)$
+\item \textbf{inverse}: $\pi^{-1}(j) = i$ where $\pi_i = j$, here $(3,1,5,2,4)$
+\item \textbf{cyclic shift by 1}: $(4,1,5,3,2)$
+\end{itemize}
+\end{example}
+
+In the codebase these operations live in \texttt{PetalPermutation}
+(Section~\ref{sec:petalperm}).
+
+\chapter{The Knoodle Library}\label{chap:knoodle}
+
+\emph{Knoodle} is a C++17/20 library for computational knot theory by
+Henrik Schumacher and Jason Cantarella. We rely on the \texttt{PlanarDiagram}
+class, the \textsc{Reapr} simplification algorithm, and --- as of version
+1.0.2 --- the three command-line tools \texttt{knoodlesimplify},
+\texttt{knoodleidentify}, and \texttt{knoodledraw}.
+
+\section{Overview}
+
+The library is documented in its own README; we recapitulate only the parts we
+use here. The high-level data flow Knoodle is designed to support is
+\[
+\text{3D polygon (TSV)} \;\to\; \text{planar diagram} \;\to\; \text{(simplified) PD code} \;\to\; \text{invariants}.
+\]
+
+\subsection{\texttt{PlanarDiagram} and \texttt{PlanarDiagramComplex}}
+
+The \texttt{PlanarDiagram} class is the central data structure. It stores the
+combinatorics of a knot diagram (crossings, arcs, faces, handedness) in a
+form amenable to local moves and rewrites. Construction is supported from
+several sources, including:
+\begin{itemize}[leftmargin=2em]
+\item \texttt{FromKnotEmbedding(coords, vertex\_count)}, which takes a 3D polygon
+and projects it to obtain a diagram;
+\item \texttt{FromSignedPDCode} and \texttt{FromUnsignedPDCode}, which read PD codes
+directly.
+\end{itemize}
+\texttt{PlanarDiagramComplex} extends this with explicit handling of multiple
+prime summands, used during simplification when a knot decomposes as a
+connect sum.
+
+\subsection{\textsc{Reapr}}
+
+\textsc{Reapr} is Knoodle's flagship diagram-simplification algorithm. It
+applies Reidemeister moves and strand reroutings to a diagram, guided by
+an energy functional, repeatedly until no further reduction is possible.
+It is far more aggressive than the textbook Reidemeister algorithm and
+routinely reduces hundred-crossing projection diagrams to their minimal
+forms.
+
+For our purposes, \textsc{Reapr} is the engine inside \texttt{knoodletool}
+that takes the messy polygon projection of a petal-star embedding and
+reduces it to a short, canonical PD code.
+
+\subsection{\texttt{ClisbyTree} and \texttt{PolyFold}}
+
+\texttt{ClisbyTree} is a fast generator of self-avoiding polygons, and
+\texttt{PolyFold} is a command-line tool that uses it for random sampling.
+We do not currently use either for the petal-knot pipeline, but they are
+worth knowing about for any future generalization to random knot
+experiments.
+
+\section{The v1.0.2 command-line tools}
+
+Knoodle v1.0.2 replaced the earlier monolithic \texttt{knoodletool} with
+three focused command-line tools. All three read 3D polygon coordinates in
+the same tab-separated format as produced by \texttt{petal\_star\_clean}.
+
+\subsection{\texttt{knoodlesimplify}}
+
+Runs the \textsc{Reapr} pipeline on the input polygon and prints a
+simplified PD code in the convention of Definition~\ref{def:pdcode}. The
+output format uses a \texttt{k} line to separate knots and an \texttt{s}
+line to separate prime summands; crossings are $5$-tuples of integers
+(four edge labels and a sign). A \texttt{--streaming-mode} flag lets many
+polygons be simplified in one invocation, which matters when driving it
+from a sampling loop.
+
+\begin{lstlisting}[style=shell,caption={Simplify a polygon to a PD code},captionpos=b]
+./knoodlesimplify petal_star.tsv > pd_code.txt
+\end{lstlisting}
+
+\subsection{\texttt{knoodleidentify}}
+
+Simplifies (via the same \textsc{Reapr} pipeline) and then \emph{names} the
+result by looking it up in Knoodle's KLUT (Knot Look-Up Table). The output
+is a Wolfram-language association whose keys record the crossing number,
+Rolfsen table index, alternating flag, and a slash-separated symmetry
+coset:
+\begin{lstlisting}[style=shell]
+<|KnotSymbol[3,1,True,"e/r"] -> 1|>
+\end{lstlisting}
+Composite knots come back as a length-$k$ association with one entry per
+prime summand. If the input diagram simplifies to the empty diagram, the
+tool returns the empty association \texttt{<||>}, which we interpret as
+the unknot.
+
+The tool requires the environment variable \texttt{KNOODLE\_KLUT\_DIR}
+to point at the KLUT data directory (typically
+\texttt{/home/linuxbrew/.linuxbrew/Cellar/knoodle/1.0.2/data/Klut} on
+Linuxbrew). Setting it once in \texttt{\textasciitilde/.bashrc} is enough.
+
+\subsection{\texttt{knoodledraw}}
+
+Renders a simplified diagram as ASCII art. It is useful for eyeballing
+whether a claimed knot name is plausible, especially when investigating
+unfamiliar cases returned by \texttt{knoodleidentify}. Because
+\texttt{knoodledraw} draws whatever diagram it is handed, it should
+generally be run downstream of \texttt{knoodlesimplify} rather than on the
+raw polygon:
+\begin{lstlisting}[style=shell]
+./knoodlesimplify --streaming-mode < petal_star.tsv | ./knoodledraw
+\end{lstlisting}
+
+\chapter{From Permutation to Polygon: the Petal-Star Construction}\label{chap:petalstar}
+
+This chapter walks through the locally written code that converts a petal
+permutation into a 3D polygon. There are two implementations,
+\texttt{petal\_star\_clean.cpp} and \texttt{petal\_star\_polygon.cpp}.
+They differ in elaborateness but pursue the same goal.
+
+\section{The \texttt{PetalPermutation} class}\label{sec:petalperm}
+
+The file \texttt{petal\_permutation.hpp} defines a single class:
+
+\begin{lstlisting}[style=cpp,caption={Selected interface of \texttt{PetalPermutation} (\texttt{petal\_permutation.hpp})},captionpos=b]
+class PetalPermutation {
+public:
+    explicit PetalPermutation(std::vector<int> values);    // validates n odd
+    const std::vector<int>& values() const;
+    int size() const;
+    PetalPermutation reversed() const;
+    PetalPermutation inverse() const;
+    PetalPermutation rotatedLeft(int shift) const;
+    std::vector<PetalPermutation> cyclicShifts() const;
+    std::vector<PetalPermutation> symmetryOrbit() const;
+    PetalPermutation canonicalRepresentative() const;
+    std::vector<int> descents() const, ascents() const,
+                     peaks() const, valleys() const;
+    std::string toString() const, compactKey() const;
+};
+\end{lstlisting}
+
+The constructor validates that the input is a permutation of $\{1,\dots,n\}$
+with $n$ odd, throwing \texttt{std::invalid\_argument} otherwise. The
+\emph{symmetry orbit} of $\pi$ is the set of all permutations obtained by
+composing cyclic shifts, reversal, and inversion (the four generators noted
+in Example~\ref{ex:permops}). The \emph{canonical representative} is the
+lexicographically smallest member of this orbit, providing a unique label
+for the orbit.
+
+The combinatorial statistics (\texttt{descents}, \texttt{ascents}, \texttt{peaks},
+\texttt{valleys}) record positions in the cyclic sequence where the permutation
+falls, rises, or makes a local extremum. These do not affect the polygon
+construction, but they are useful for diagnostic output via the
+\texttt{--info} flag and for studies of which combinatorial features
+correlate with which knot types.
+
+\section{The clean construction: \texttt{petal\_star\_clean.cpp}}
+
+The cleanest implementation is in \texttt{petal\_star\_clean.cpp}. Given a
+permutation $\pi$ of length $n$, it builds a 3D polygon consisting of $n$
+straight chords through (or just past) the origin, joined by short triangular
+``petals'' on the outer rim. The key design choices are:
+
+\begin{enumerate}[leftmargin=2em]
+\item \textbf{Traversal step.} The $t$-th chord enters the unit circle at
+angle $a_t = 2\pi t s / n$, where $s = (n+1)/2$ is coprime to $n$. Successive
+chords therefore exit at adjacent boundary positions, so the connecting
+arcs (the ``petals'') are thin and contribute no extra crossings.
+\item \textbf{Heights.} Each chord is at the constant height
+$z_t = h \cdot \bigl(\pi_t - \tfrac{n+1}{2}\bigr)$, so the vertical order of
+the $n$ strands at the centre is exactly the permutation $\pi$.
+\item \textbf{Resolving the central degeneracy.} The $n$ chords through the
+origin would all cross at a single point (a degenerate $n$-fold crossing).
+Each chord's far endpoint is rotated by a uniform small angle
+$\delta = \pi/(2n)$; the resulting chords miss the centre and pairwise
+intersect cleanly, forming a star of $\binom{n}{2}$ simple crossings.
+\end{enumerate}
+
+The over/under data at every central crossing is determined purely by the
+strand heights, which in turn is determined purely by $\pi$.
+
+\begin{lstlisting}[style=cpp,caption={Polygon construction (\texttt{petal\_star\_clean.cpp})},captionpos=b]
+std::vector<Point3D> buildPetalStar(
+    const PetalPermutation& perm,
+    double radius, double petalRadius, double heightScale
+) {
+    const int n = perm.size();
+    const auto& vals = perm.values();
+    const int step = (n + 1) / 2;
+    const double twoPi = 2.0 * M_PI;
+    const double delta = M_PI / (2.0 * n);  // uniform shift left
+
+    std::vector<Point3D> polygon;
+    for (int t = 0; t < n; ++t) {
+        const int    p     = (t * step) % n;
+        const int    pNext = ((t + 1) * step) % n;
+        const double a     = twoPi * p / n;
+        const double aNext = twoPi * pNext / n;
+        const double z     = heightFromValue(vals[t], n, heightScale);
+        const double zNext = heightFromValue(vals[(t + 1) % n], n, heightScale);
+
+        const double entryAng = a;
+        const double exitAng  = a + M_PI + delta;
+        const Point3D entry = { radius*cos(entryAng), radius*sin(entryAng), z };
+        const Point3D exit  = { radius*cos(exitAng),  radius*sin(exitAng),  z };
+
+        const double gap    = wrapTo2Pi(aNext - exitAng);
+        const double tipAng = exitAng + 0.5 * gap;
+        const Point3D tip   = { petalRadius*cos(tipAng),
+                                petalRadius*sin(tipAng),
+                                0.5 * (z + zNext) };
+        polygon.push_back(entry);
+        polygon.push_back(exit);
+        polygon.push_back(tip);
+    }
+    polygon.push_back(polygon.front());  // close the loop
+    return polygon;
+}
+\end{lstlisting}
+
+The polygon has $3n + 1$ vertices: $n$ chord entries, $n$ chord exits, $n$
+petal tips, plus a duplicate of the first vertex to close the loop.
+
+\paragraph{Why $\delta = \pi/(2n)$?} The constraint is $0 < \delta < \pi/n$.
+The lower bound is needed to break the degeneracy; the upper bound ensures
+that successive chord exits do not overlap the next chord's entry, i.e.\
+that the petal gap remains positive. Choosing $\delta = \pi/(2n)$ centres
+the chord exit between two extreme positions, which is the simplest choice
+that respects both bounds. The resulting diagram is symmetric under
+$\pi \mapsto \pi^{-1}$ and $\pi \mapsto \pi^{\mathrm{rev}}$, so no preferred
+direction or chirality is introduced by the construction itself.
+
+\paragraph{Verification.} For $n=5$ the polygon has $\binom{5}{2} = 10$ central
+crossings, matching the expected count for a $5$-petal projection. The
+order of heights at the centre exactly reproduces $\pi$, as required.
+
+\section{The elaborated construction: \texttt{petal\_star\_polygon.cpp}}
+
+\texttt{petal\_star\_polygon.cpp} is an earlier, more elaborate implementation
+that constructs the same overall figure but with five named points per strand
+($Q_{\mathrm{in}}, P_{\mathrm{in}}, P_{\mathrm{out}}, Q_{\mathrm{out}},
+A$) and several layers of perturbation (\texttt{innerJitter},
+\texttt{outerJitter}, \texttt{petalJitter}, \texttt{apexLift}). The extra
+machinery exists to dodge floating-point degeneracies in earlier projection
+code and to keep the projected diagram readable when drawn. The output
+polygon serves the same role downstream.
+
+For new development we recommend \texttt{petal\_star\_clean.cpp} as the
+canonical generator. Its geometry is simpler to reason about, and its
+output has the smallest possible number of vertices while still being a
+valid embedding.
+
+\section{Output format}
+
+Both programs write a TSV file (default \texttt{petal\_star.tsv}) containing
+one $x,y,z$ triple per line, ten decimal digits of precision. This is the
+format consumed by \texttt{knoodletool}.
+
+\chapter{Enumerating and Identifying Petal Knots}\label{chap:enum}
+
+The construction of Chapter~\ref{chap:petalstar} gives one direction of the
+pipeline: a permutation goes in, a polygon comes out. Chapter~\ref{chap:knoodle}
+gives the other direction: a polygon (through \texttt{knoodleidentify}) yields
+a named knot type. Composed, the two directions turn a petal permutation into
+a knot name entirely by shell command. This chapter documents the small
+collection of sampling programs built on top of that composition, together
+with the compact naming convention we use for the results and a first
+conjecture that fell out of running them.
+
+\section{Compact knot notation}\label{sec:compact}
+
+\texttt{knoodleidentify} returns a Wolfram-language association whose keys
+are of the form
+\[
+\texttt{KnotSymbol}[c, i, \texttt{alt}, \texttt{"sym"}],
+\]
+where $c$ is the crossing number, $i$ the Rolfsen table index,
+\texttt{alt} \texttt{= True} for alternating knots, and \texttt{sym} a
+slash-separated listing of a coset of the diagram's symmetry group (e.g.\
+\texttt{e/r}, \texttt{m/mr}, \texttt{e/r/m/mr}). This is precise but
+verbose.
+
+For human-readable output we compact each summand to a single string of the
+form
+\[
+\texttt{<chirality><c>.<i>[n]},
+\]
+with the following convention:
+\begin{itemize}[leftmargin=2em]
+\item \texttt{chirality} $\in \{\texttt{a}, \texttt{p}, \texttt{m}, \texttt{h}\}$,
+where \texttt{a} is amphichiral (coset contains both \texttt{e} and
+\texttt{m}), \texttt{p} is ``positive'' (contains only \texttt{e}),
+\texttt{m} is mirror (contains only \texttt{m}), and \texttt{h} covers
+the rare chiral non-invertible cases whose coset contains neither
+(e.g.\ $9_{42}$);
+\item \texttt{c.i} is the Rolfsen crossing number and index;
+\item the suffix \texttt{n} is appended when $c \geq 11$ and the knot is
+non-alternating, matching the convention of the standard tables at
+these crossing numbers.
+\end{itemize}
+Composite knots are joined with \texttt{\#}: for example
+\texttt{p3.1\#m3.1} is the connect sum of a positive trefoil and a
+negative trefoil. The unknot is \texttt{a0.1}.
+
+\paragraph{Chirality convention.}
+Independent implementations of the petal-knot pipeline disagree on which
+mirror is ``positive.'' In our reference dataset (see
+Section~\ref{sec:crossval}) the \texttt{e}-coset corresponds to
+\texttt{m} and the \texttt{m}-coset to \texttt{p} --- exactly the
+reverse of what \texttt{knoodleidentify}'s coset naming suggests. We
+therefore swap the two branches when computing the chirality prefix.
+The swap is documented in-line in the source of every tool that emits
+compact knot names, with the original mapping preserved as a comment.
+
+\section{Sampling programs}\label{sec:sampling}
+
+\subsection{\texttt{sample\_all\_perms.cpp}}
+
+\texttt{sample\_all\_perms} enumerates one representative per \emph{rotation
+orbit} of petal permutations of length $n$: every permutation with
+$\pi_1 = 1$, in lexicographic order. For each rep it invokes
+\texttt{petal\_star\_clean} to build the polygon, \texttt{knoodleidentify}
+to name the knot, converts the KnotSymbol to compact form, and emits
+
+\begin{lstlisting}[style=shell]
+# 1 2 3 4 5 6 7
+a0.1
+
+# 1 2 3 4 5 7 6
+a0.1
+\end{lstlisting}
+
+Cyclic shifts of a petal permutation produce the same knot, so it is
+enough to walk the $(n-1)!$ reps with $\pi_1 = 1$ rather than all $n!$
+permutations. For $n = 7$ that is $720$ rows; for $n = 9$, $40320$.
+
+\subsection{\texttt{sample\_const\_diff.cpp}}\label{sec:sampleconstdiff}
+
+\texttt{sample\_const\_diff} sweeps the \emph{constant-difference}
+permutations
+\[
+\pi^{(d)}_i = ((i-1)\, d \bmod n) + 1, \qquad \gcd(d, n) = 1,
+\]
+identifies each resulting knot, and annotates it against a small hardcoded
+table of known torus knots (T(2,3), T(2,5), T(2,7), T(2,9), T(3,4),
+T(3,5), \ldots). The tool is motivated by the conjecture reported in
+Section~\ref{sec:torus-conj}: every constant-difference petal permutation
+appears empirically to produce a torus knot. Anything not in the table is
+annotated \texttt{?}, so unknowns show up as gaps in a column rather than
+as false positives.
+
+\subsection{\texttt{sample\_rotation\_classes.cpp}}\label{sec:samplerotclasses}
+
+\texttt{sample\_rotation\_classes} enumerates canonical representatives of
+a \emph{stronger} equivalence than pure rotation: the combined action of
+cyclic rotation of position and cyclic shift of value. Two permutations
+are identified iff their cyclic-difference tuples
+\[
+\pd_i(\pi) \;=\; (\pi_{i+1} - \pi_i) \bmod n, \qquad
+\pi_{n+1} := \pi_1,
+\]
+are cyclic rotations of one another. Each orbit has a unique canonical
+rep: the permutation with $\pi_1 = 1$ whose $\pd$ tuple is the
+lexicographically smallest cyclic rotation of the class. For $n = 9$
+this produces $4492$ rows, reproducing the format of an external
+reference dataset (\texttt{rclass9.txt}) used for combinatorial
+cross-checks.
+
+Rows are further stratified by the invariants
+\[
+w(\pi) \;=\; \tfrac{1}{n}\sum_i \pd_i(\pi) \qquad \text{(winding number)}
+\]
+and the \emph{robust} flag, which is true iff every $\pd_i \in \{2, \dots,
+n-2\}$ (equivalently, no cyclically adjacent pair of petals has
+consecutive heights). Robust classes are emitted first, then non-robust,
+each block sorted by $(w, \pd)$.
+
+\section{Equivalences on petal permutations}\label{sec:equivalences}
+
+The three sampling tools of Section~\ref{sec:sampling} correspond to three
+progressively stronger equivalences on the space of petal permutations. The
+orbit counts under each equivalence give a sense of the scale of the
+enumeration.
+
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\hline
+Equivalence & $n=5$ & $n=7$ & $n=9$ \\
+\hline
+None (all $n!$)                           & 120  & 5040 & 362880 \\
+Rotation only ($\pi_1 = 1$)               & 24   & 720  & 40320  \\
+Rotation $\times$ value-shift ($C_n \times C_n$) & 8 & 130 & 4492 \\
+\hline
+\end{tabular}
+\end{center}
+
+The rotation-only equivalence is a genuine knot invariant: cyclic shift of
+a petal permutation does not change the resulting knot. The rotation
+$\times$ value-shift equivalence is coarser and is not, in general, a
+knot invariant --- it groups together permutations whose crossing patterns
+have the same $\pd$-tuple shape, which is convenient for compact
+enumeration and matches the format of external reference data.
+
+Symmetry generators that we do \emph{not} include in either equivalence
+(and which would give further identifications) are reversal of the
+sequence ($\pi \mapsto \pi^{\mathrm{rev}}$) and value reflection
+($\pi_i \mapsto n + 1 - \pi_i$); both produce the mirror image of the
+underlying knot.
+
+\section{Cross-validation}\label{sec:crossval}
+
+For $n = 7$, the output of \texttt{sample\_all\_perms} was cross-checked
+against an independently produced reference file
+(\texttt{Parsley\_n7.txt}) covering the same $720$ rotation classes in
+the same lexicographic order. Once the chirality convention of
+Section~\ref{sec:compact} is applied, the two agree byte-for-byte after
+whitespace normalization: zero knot mismatches across all $720$ rows.
+This is strong evidence that the composition
+\[
+\text{permutation} \longrightarrow
+\texttt{petal\_star\_clean} \longrightarrow
+\texttt{knoodleidentify}
+\]
+correctly identifies the knot type of every petal permutation of length
+$7$, and by extension provides confidence in the same pipeline at
+$n = 9$ and beyond.
+
+The comparison itself is performed by a small utility,
+\texttt{file\_compare.cpp}, which strips whitespace from both files and
+reports the first non-whitespace byte at which they disagree. This is
+robust to differences in trailing newlines, blank-line conventions, and
+minor spacing.
+
+\section{The torus-knot conjecture}\label{sec:torus-conj}
+
+An observation that fell out of running \texttt{sample\_const\_diff} is
+that every constant-difference petal permutation appears to produce a
+torus knot. For $n = 9$ the six values of $d$ coprime to $9$ produce:
+
+\begin{center}
+\begin{tabular}{@{}rlll@{}}
+\hline
+$d$ & permutation & compact knot & torus label \\
+\hline
+$1$ & $(1,2,3,4,5,6,7,8,9)$ & \texttt{a0.1}       & unknot        \\
+$2$ & $(1,3,5,7,9,2,4,6,8)$ & \texttt{m5.1}       & $T(2,5)$      \\
+$4$ & $(1,5,9,4,8,3,7,2,6)$ & \texttt{m15.41185n} & (conjectured $T(4,9)$) \\
+$5$ & $(1,6,2,7,3,8,4,9,5)$ & \texttt{p15.41185n} & (mirror of above)      \\
+$7$ & $(1,8,6,4,2,9,7,5,3)$ & \texttt{p5.1}       & $T(2,5)$      \\
+$8$ & $(1,9,8,7,6,5,4,3,2)$ & \texttt{a0.1}       & unknot        \\
+\hline
+\end{tabular}
+\end{center}
+
+The pairing $d \leftrightarrow n - d$ produces mirror-image knots. This is
+because replacing $d$ by $n - d$ reverses the cyclic order in which the
+petals are visited and so flips the sign of every crossing.
+
+Two directions worth pursuing:
+\begin{itemize}[leftmargin=2em]
+\item \textbf{Prove the conjecture.} Identify which torus knot
+$\pi^{(d)}$ produces as a function of $(n, d)$; the classical
+expectation is $T(d, n)$ or a small variant thereof, with the mirror
+symmetry above.
+\item \textbf{Extend \texttt{TORUS\_TABLE}.} As larger $n$ are swept,
+add newly encountered compact names to the recognition table in
+\texttt{sample\_const\_diff.cpp} so that the annotation column fills
+in without manual look-up.
+\end{itemize}
+
+\chapter{Current State and Next Steps}\label{chap:state}
+
+\section{What works}
+
+The current pipeline turns a petal permutation into a named knot type. The
+components are:
+\begin{itemize}[leftmargin=2em]
+\item \texttt{petal\_permutation.hpp}: petal permutation class.
+\item \texttt{petal\_star\_clean.cpp}: deterministic permutation-to-polygon
+generator. This file is treated as canonical and is not to be modified.
+\item \texttt{petal\_star\_polygon.cpp}: earlier, more elaborate polygon
+generator, kept for reference.
+\item \texttt{sample\_all\_perms.cpp}: enumerates one rep per rotation
+orbit of petal permutations of length $n$ and identifies each knot.
+\item \texttt{sample\_const\_diff.cpp}: sweeps constant-difference
+permutations, identifies each knot, and annotates against a small
+table of torus knots.
+\item \texttt{sample\_rotation\_classes.cpp}: enumerates canonical reps
+under the combined position-rotation $\times$ value-shift equivalence;
+reproduces the $4492$-row \texttt{rclass9} reference format for $n = 9$.
+\item \texttt{file\_compare.cpp}: whitespace-insensitive file diff, used
+for cross-validation against external reference data.
+\end{itemize}
+The TSV output of \texttt{petal\_star\_clean} feeds
+\texttt{knoodlesimplify} and \texttt{knoodleidentify}, giving a
+permutation-to-knot-name pipeline that is validated at $n = 7$ against an
+independent reference (Section~\ref{sec:crossval}).
+
+An earlier attempt at a home-grown Alexander-polynomial-based identifier
+(\texttt{identify\_knot.cpp}) is kept in the repository for reference but
+has been superseded by \texttt{knoodleidentify}, which is both faster and
+handles a much wider range of knots via the KLUT.
+
+\section{Open directions}
+
+\begin{itemize}[leftmargin=2em]
+\item \textbf{The torus-knot conjecture.} Prove that every
+constant-difference petal permutation produces a torus knot and pin
+down the exact $T(p, q)$ as a function of $(n, d)$
+(Section~\ref{sec:torus-conj}). Extending the torus recognition
+table in \texttt{sample\_const\_diff.cpp} at larger $n$ is the
+immediate empirical step.
+\item \textbf{Direct \texttt{perm\_to\_pd}.} For petal knots specifically,
+the PD code is determined analytically by the permutation: there are
+exactly $\binom{n}{2}$ central crossings, the over/under data is read
+from the permutation, and the traversal order is fixed by the step
+$s = (n+1)/2$. A direct \texttt{perm\_to\_pd} routine would remove the
+polygon-projection round-trip from the front of the pipeline.
+\item \textbf{Scaling to $n = 11$ and beyond.} At $n = 11$ the rotation
+orbit count reaches $10! = 3.6$M, which is on the edge of feasibility
+for the current shell-out driver. A streaming or in-process
+integration with \texttt{knoodleidentify} (avoiding process startup
+per permutation) is the natural performance improvement.
+\item \textbf{Cataloguing under further symmetries.} The
+\texttt{PetalPermutation} class already computes symmetry orbits under
+reversal and inversion; these can drive an even coarser enumeration
+by identifying mirror-related knots when that is the appropriate
+level of granularity.
+\end{itemize}
+
+\begin{thebibliography}{9}
+
+\bibitem{Adams}
+C.~Adams, T.~Crawford, B.~DeMeo, et al.,
+\emph{Knot projections with a single multi-crossing},
+J.\ Knot Theory Ramifications \textbf{24} (2015), no.~3.
+
+\bibitem{Kawauchi}
+A.~Kawauchi,
+\emph{A Survey of Knot Theory},
+Birkh\"auser, 1996.
+
+\bibitem{Knoodle}
+H.~Schumacher and J.~Cantarella,
+\emph{Knoodle: a library for computational knot theory},
+\url{https://github.com/HenrikSchumacher/Knoodle}.
+
+\bibitem{Lickorish}
+W.~B.~R.~Lickorish,
+\emph{An Introduction to Knot Theory},
+Springer GTM 175, 1997.
+
+\bibitem{Murasugi}
+K.~Murasugi,
+\emph{Knot Theory and Its Applications},
+Birkh\"auser, 1996.
+
+\bibitem{Rolfsen}
+D.~Rolfsen,
+\emph{Knots and Links},
+AMS Chelsea, 2003.
+
+\end{thebibliography}
+
+\end{document}
