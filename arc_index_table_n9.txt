@@ -1,0 +1,88 @@
+crossings	arc_index	count	knots
+0	2	1	a0.1
+3	5	2	m3.1,p3.1
+4	6	1	a4.1
+5	7	4	m5.1,m5.2,p5.1,p5.2
+6	8	8	a6.3,m3.1#m3.1,m3.1#p3.1,m6.1,m6.2,p3.1#p3.1,p6.1,p6.2
+7	9	16	m3.1#a4.1,m7.1,m7.2,m7.3,m7.4,m7.5,m7.6,m7.7,p3.1#a4.1,p7.1,p7.2,p7.3,p7.4,p7.5,p7.6,p7.7
+8	7	2	m8.19,p8.19
+8	8	4	m8.20,m8.21,p8.20,p8.21
+9	8	4	m9.42,m9.46,p9.42,p9.46
+9	9	6	m9.43,m9.44,m9.45,p9.43,p9.44,p9.45
+10	8	2	m10.124,p10.124
+10	9	12	m10.128,m10.132,m10.139,m10.140,m10.145,m10.161,p10.128,p10.132,p10.139,p10.140,p10.145,p10.161
+11	9	2	m11.118n,p11.118n
+12	9	4	m12.242n,m12.591n,p12.242n,p12.591n
+
+# Prediction check: prime alternating knots satisfy alpha = c + 2
+# (Bae-Park); connected sums satisfy alpha(K1 # K2) = alpha(K1) + alpha(K2) - 2;
+# prime non-alternating knots satisfy alpha <= c (Jin-Park).
+knot	crossings	alternating	alpha_found	predicted	status
+a0.1	0	yes	2	2	ok
+a4.1	4	yes	6	6	ok
+a6.3	6	yes	8	8	ok
+m10.124	10	no	8	12	ok (Jin-Park)
+m10.128	10	no	9	12	ok (Jin-Park)
+m10.132	10	no	9	12	ok (Jin-Park)
+m10.139	10	no	9	12	ok (Jin-Park)
+m10.140	10	no	9	12	ok (Jin-Park)
+m10.145	10	no	9	12	ok (Jin-Park)
+m10.161	10	no	9	12	ok (Jin-Park)
+m11.118n	11	no	9	13	ok (Jin-Park)
+m12.242n	12	no	9	14	ok (Jin-Park)
+m12.591n	12	no	9	14	ok (Jin-Park)
+m3.1	3	yes	5	5	ok
+m3.1#a4.1	7	yes	9	9	ok (additivity)
+m3.1#m3.1	6	yes	8	8	ok (additivity)
+m3.1#p3.1	6	yes	8	8	ok (additivity)
+m5.1	5	yes	7	7	ok
+m5.2	5	yes	7	7	ok
+m6.1	6	yes	8	8	ok
+m6.2	6	yes	8	8	ok
+m7.1	7	yes	9	9	ok
+m7.2	7	yes	9	9	ok
+m7.3	7	yes	9	9	ok
+m7.4	7	yes	9	9	ok
+m7.5	7	yes	9	9	ok
+m7.6	7	yes	9	9	ok
+m7.7	7	yes	9	9	ok
+m8.19	8	no	7	10	ok (Jin-Park)
+m8.20	8	no	8	10	ok (Jin-Park)
+m8.21	8	no	8	10	ok (Jin-Park)
+m9.42	9	no	8	11	ok (Jin-Park)
+m9.43	9	no	9	11	ok (Jin-Park)
+m9.44	9	no	9	11	ok (Jin-Park)
+m9.45	9	no	9	11	ok (Jin-Park)
+m9.46	9	no	8	11	ok (Jin-Park)
+p10.124	10	no	8	12	ok (Jin-Park)
+p10.128	10	no	9	12	ok (Jin-Park)
+p10.132	10	no	9	12	ok (Jin-Park)
+p10.139	10	no	9	12	ok (Jin-Park)
+p10.140	10	no	9	12	ok (Jin-Park)
+p10.145	10	no	9	12	ok (Jin-Park)
+p10.161	10	no	9	12	ok (Jin-Park)
+p11.118n	11	no	9	13	ok (Jin-Park)
+p12.242n	12	no	9	14	ok (Jin-Park)
+p12.591n	12	no	9	14	ok (Jin-Park)
+p3.1	3	yes	5	5	ok
+p3.1#a4.1	7	yes	9	9	ok (additivity)
+p3.1#p3.1	6	yes	8	8	ok (additivity)
+p5.1	5	yes	7	7	ok
+p5.2	5	yes	7	7	ok
+p6.1	6	yes	8	8	ok
+p6.2	6	yes	8	8	ok
+p7.1	7	yes	9	9	ok
+p7.2	7	yes	9	9	ok
+p7.3	7	yes	9	9	ok
+p7.4	7	yes	9	9	ok
+p7.5	7	yes	9	9	ok
+p7.6	7	yes	9	9	ok
+p7.7	7	yes	9	9	ok
+p8.19	8	no	7	10	ok (Jin-Park)
+p8.20	8	no	8	10	ok (Jin-Park)
+p8.21	8	no	8	10	ok (Jin-Park)
+p9.42	9	no	8	11	ok (Jin-Park)
+p9.43	9	no	9	11	ok (Jin-Park)
+p9.44	9	no	9	11	ok (Jin-Park)
+p9.45	9	no	9	11	ok (Jin-Park)
+p9.46	9	no	8	11	ok (Jin-Park)

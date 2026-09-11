@@ -9,13 +9,12 @@ Input:
   3D vertices: 40
 
 Output:
-  Total crossings: 0
+  Total crossings: 19
   Summands: 1
-  Unknots: 1
-  Proven minimal: 1/1 (100.0 %)
-  Simplification factor: infinite (reduced to unknot)
+  Proven minimal: 0/1 (0.0 %)
+  Simplification factor: 4.11x
 
 Timing:
-  Input:          8.6306e-05 s
-  Simplification: 4.0023e-05 s
-  Output:         1.6741e-06 s
+  Input:          8.8570e-05 s
+  Simplification: 4.3005e-02 s
+  Output:         1.1052e-05 s

@@ -804,8 +804,8 @@ $d$ & permutation & compact knot & torus label \\
 \hline
 $1$ & $(1,2,3,4,5,6,7,8,9)$ & \texttt{a0.1}       & unknot        \\
 $2$ & $(1,3,5,7,9,2,4,6,8)$ & \texttt{m5.1}       & $T(2,5)$      \\
-$4$ & $(1,5,9,4,8,3,7,2,6)$ & \texttt{m15.41185n} & (conjectured $T(4,9)$) \\
-$5$ & $(1,6,2,7,3,8,4,9,5)$ & \texttt{p15.41185n} & (mirror of above)      \\
+$4$ & $(1,5,9,4,8,3,7,2,6)$ & \texttt{m15.41185n} & $T(4,5)$      \\
+$5$ & $(1,6,2,7,3,8,4,9,5)$ & \texttt{p15.41185n} & mirror of $T(4,5)$ \\
 $7$ & $(1,8,6,4,2,9,7,5,3)$ & \texttt{p5.1}       & $T(2,5)$      \\
 $8$ & $(1,9,8,7,6,5,4,3,2)$ & \texttt{a0.1}       & unknot        \\
 \hline
@@ -816,16 +816,453 @@ The pairing $d \leftrightarrow n - d$ produces mirror-image knots. This is
 because replacing $d$ by $n - d$ reverses the cyclic order in which the
 petals are visited and so flips the sign of every crossing.
 
+\paragraph{The $d = 4$ row.} An earlier draft of this table recorded
+$d = 4$ as a conjectured $T(4,9)$, on the grounds that $T(d,n)$ was the
+natural guess. That is wrong, and two independent computations say so.
+\texttt{torus\_match}, run on the Alexander polynomial
+$\Delta(t) = t^{12} - t^{11} + t^{8} - t^{6} + t^{4} - t + 1$ of the
+simplified diagram, reports $T(4,5)$ and notes that $15$ crossings is
+exactly what $T(4,5)$ should have --- which matches the compact name
+\texttt{m15.41185n} already in the table. And the arc index rules $T(4,9)$
+out on its own: $\alpha(T(p,q)) = p + q$, so $T(4,9)$ would need
+$\alpha = 13$, whereas Proposition~\ref{prop:petal-grid} caps the arc index
+of any knot from a nine-petal permutation at $9$. The arc-index search
+returns exactly $9 = 4 + 5$ (Chapter~\ref{chap:arcindex}).
+
 Two directions worth pursuing:
 \begin{itemize}[leftmargin=2em]
 \item \textbf{Prove the conjecture.} Identify which torus knot
-$\pi^{(d)}$ produces as a function of $(n, d)$; the classical
-expectation is $T(d, n)$ or a small variant thereof, with the mirror
-symmetry above.
+$\pi^{(d)}$ produces as a function of $(n, d)$, with the mirror
+symmetry above. The data for $n \leq 11$ is
+
+\begin{center}
+\begin{tabular}{@{}rllr@{}}
+\hline
+$n$ & $d$ & torus type & $\alpha$ found \\
+\hline
+$7$  & $1$ & unknot   & $2$  \\
+$7$  & $2$ & $T(2,3)$ & $5$  \\
+$7$  & $3$ & $T(3,4)$ & $7$  \\
+$9$  & $2$ & $T(2,5)$ & $7$  \\
+$9$  & $4$ & $T(4,5)$ & $9$  \\
+$11$ & $2$ & $T(2,5)$ & $7$  \\
+$11$ & $3$ & $T(3,5)$ & $8$  \\
+$11$ & $5$ & $T(5,6)$ & $11$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+(rows with $d > n/2$ omitted, being the mirrors). Every arc index found
+equals $p + q$, as it must. The extreme case is clean: $d = (n-1)/2$
+gives $T\bigl(\tfrac{n-1}{2}, \tfrac{n+1}{2}\bigr)$, whose arc index
+$n$ saturates Proposition~\ref{prop:petal-grid} --- the petal
+presentation is then already an optimal arc presentation. The middle
+rows do not yet fit one formula, and $n = 13$ resists: for
+$d \in \{4,5\}$ the Alexander route reports no torus type, while
+\texttt{knoodleidentify} stalls at a $19$-crossing diagram, so it is not
+currently clear whether those are genuine counterexamples or a failure of
+simplification. That is the first thing to settle.
 \item \textbf{Extend \texttt{TORUS\_TABLE}.} As larger $n$ are swept,
 add newly encountered compact names to the recognition table in
 \texttt{sample\_const\_diff.cpp} so that the annotation column fills
 in without manual look-up.
+\end{itemize}
+
+\chapter{Arc Index and Grid Diagrams}\label{chap:arcindex}
+
+Everything so far has treated a petal permutation as a recipe for building a
+polygon. This chapter reads the same permutation a second way, and the reward
+is a classical knot invariant that costs almost nothing extra to compute.
+
+The invariant is the \emph{arc index}. It sounds geometric --- it is defined
+by pushing a knot into a book of half-planes --- but its combinatorial
+shadow, the grid diagram, is nothing more than a pair of permutations. That
+is exactly the kind of object this thesis already manipulates, so arc index
+fits into the existing pipeline with no new machinery.
+
+\section{Arc presentations}
+
+\begin{definition}
+Fix a line $A \subset \R^3$ (the \emph{binding axis}) and regard $\R^3$ as
+the union of the half-planes bounded by $A$, the \emph{pages} of an open
+book. An \emph{arc presentation} of a knot $K$ is an embedding of $K$ that
+meets $A$ in finitely many points and meets each page in at most one simple
+arc whose endpoints lie on $A$.
+\end{definition}
+
+If an arc presentation uses $n$ pages then it meets $A$ in exactly $n$
+points, since the $n$ arcs are joined end to end into a single closed curve
+and each binding point is shared by exactly two of them.
+
+\begin{definition}
+The \emph{arc index} $\alpha(K)$ is the least $n$ for which $K$ admits an arc
+presentation with $n$ arcs.
+\end{definition}
+
+Cromwell~\cite{Cromwell} proved that every knot has an arc presentation, so $\alpha$ is
+well defined; the conventions here set $\alpha(\text{unknot}) = 2$, and
+$\alpha(K) \geq 5$ for every non-trivial knot.
+
+\section{Grid diagrams}
+
+Flattening an open book turns an arc presentation into a purely
+combinatorial object.
+
+\begin{definition}
+A \emph{grid diagram} of size $n$ is an $n \times n$ array of cells carrying
+markers $X$ and $O$, exactly one of each in every row and every column. Join
+the two markers of each row by a horizontal segment and the two markers of
+each column by a vertical segment, and declare every vertical segment to
+pass \emph{over} every horizontal segment. The result is a knot diagram.
+\end{definition}
+
+Equivalently, a grid diagram of size $n$ is a pair of permutations
+$(\sigma_X, \sigma_O) \in \Sym(n)^2$ with $\sigma_X(j) \neq \sigma_O(j)$ for
+all $j$: the entry $\sigma_X(j)$ records the row of the $X$ in column $j$,
+and likewise for $O$. Nothing else is needed. This is the representation
+used in \texttt{grid\_diagram.hpp}.
+
+The dictionary between the two pictures is:
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\hline
+arc presentation & grid diagram \\
+\hline
+page (one arc)            & column (vertical segment) \\
+binding point             & row (horizontal segment) \\
+cyclic order of the pages & cyclic order of the columns \\
+heights on the axis       & order of the rows \\
+arcs run in front of $A$  & verticals cross over horizontals \\
+\hline
+\end{tabular}
+\end{center}
+The last line is the one worth pausing on. The horizontal segments of a grid
+diagram are the pieces of the binding axis, and the axis lies behind every
+page; that is precisely why the over/under rule is uniform. Because the
+correspondence is a bijection up to the obvious moves, the arc index equals
+the minimal size of a grid diagram of $K$, also called the \emph{grid
+number}.
+
+\begin{theorem}[Cromwell~\cite{Cromwell}]
+Any two grid diagrams of the same link are related by a finite sequence of
+\emph{Cromwell moves}: cyclic permutation of the rows or of the columns,
+commutation of two adjacent rows or columns whose marker intervals are
+disjoint or nested, and stabilisation / destabilisation, which change the
+grid size by one.
+\end{theorem}
+
+\section{A petal permutation is an arc presentation}\label{sec:petal-to-grid}
+
+Here is the observation that makes this chapter cheap.
+
+In a petal projection with $n$ petals, the knot passes through the central
+ubercrossing $n$ times, at heights $\pi_1, \dots, \pi_n$ in traversal order,
+and the $t$-th petal is the loop that leaves the centre after the passage at
+height $\pi_t$ and returns for the passage at height $\pi_{t+1}$
+(indices mod $n$). Now read the vertical line through the centre of the
+petal diagram as the binding axis. Each petal leaves the axis, sweeps
+through its own angular wedge, and comes back: it is an arc in a single
+page. The $n$ passages through the centre are the $n$ binding points, and
+their heights are precisely the values $\pi_t$.
+
+\begin{proposition}\label{prop:petal-grid}
+A petal permutation $\pi$ of length $n$ determines a grid diagram of size
+$n$ presenting the same knot, namely
+\[
+\sigma_X\bigl((t \cdot s) \bmod n\bigr) = \pi_t,
+\qquad
+\sigma_O\bigl((t \cdot s) \bmod n\bigr) = \pi_{t+1},
+\qquad s = \tfrac{n+1}{2}.
+\]
+Consequently $\alpha(K) \leq n$ for every knot $K$ arising from a length-$n$
+petal permutation, and in particular
+\[
+\alpha(K) \;\leq\; p(K),
+\]
+where $p(K)$ is the petal number.
+\end{proposition}
+
+The step $s = (n+1)/2$ appears because the petals are laid out around the
+centre in the star order already used by the polygon construction of
+Chapter~\ref{chap:petalstar}: petal $t$ occupies angular slot
+$(t \cdot s) \bmod n$, and the cyclic order of the columns has to be the
+cyclic order of the pages. Orienting the knot along the traversal fixes
+which marker of a column is $X$ and which is $O$: verticals run from $X$ to
+$O$, so the $X$ sits at the height the arc leaves and the $O$ at the height
+it returns to.
+
+The bound $\alpha \leq p$ is not an equality. The figure-eight knot has
+petal number $7$ but arc index $6$: a petal projection is an arc
+presentation subject to the extra constraint that the pages sit in the
+rigid rose pattern, and dropping that constraint can save pages.
+
+\section{Implementation}
+
+\subsection{\texttt{grid\_diagram.hpp}}
+
+The \texttt{GridDiagram} class stores the two permutations and provides:
+\begin{itemize}[leftmargin=2em]
+\item \texttt{fromPetalPermutation} --- Proposition~\ref{prop:petal-grid},
+verbatim;
+\item \texttt{crossingCount} and \texttt{componentCount} --- a crossing
+occurs at every (row, column) pair whose two segments strictly straddle
+each other, and the component count confirms we are looking at a knot
+rather than a link;
+\item the Cromwell moves \texttt{rotateRows}, \texttt{rotateColumns},
+\texttt{commuteRows}, \texttt{commuteColumns} and \texttt{tryDestabilize};
+\item \texttt{simplify} --- the search of
+Section~\ref{sec:arc-search};
+\item \texttt{writePolygonTSV} --- a polygonal realisation in $\R^3$.
+\end{itemize}
+
+Destabilisation deserves a word, since it is the move that actually reduces
+the grid. Look for a $2 \times 2$ block of cyclically adjacent rows and
+columns holding exactly three markers. The marker diagonally opposite the
+empty cell is the corner; deleting its row and column, and dropping a marker
+of the shared type of the other two into the empty cell, yields a grid of
+size $n - 1$ presenting the same knot. The test is four array lookups per
+block, so scanning for a destabilisation is $O(n^2)$.
+
+\subsection{Back into the existing pipeline}
+
+\texttt{writePolygonTSV} emits a closed polygon in the same tab-separated
+format as \texttt{petal\_star\_clean}, so a grid diagram can be fed to
+\texttt{knoodlesimplify} and \texttt{knoodleidentify} without any new glue.
+The realisation is direct: put the horizontal segments at $z = -1$ and the
+vertical segments at $z = +1$, which is literally the ``verticals over
+horizontals'' rule. Each corner is cut by a short diagonal of length
+$\varepsilon = 1/4$ that carries the height change, so that no projected
+edge is degenerate; since the $\varepsilon$-neighbourhood of a marker
+contains no other strand, the cut changes nothing topologically.
+
+\subsection{Searching for the arc index}\label{sec:arc-search}
+
+\texttt{simplify} destabilises greedily and then wanders: most steps are
+random commutations, which preserve the grid size and shuffle the diagram
+within its commutation class looking for a corner to destabilise; the rest
+are stabilisations, which cost one unit of size but can expose a corner
+that was not reachable otherwise. The best grid seen is retained, and the
+walk resets to it whenever it drifts more than \texttt{slack} (default
+$2$) above. Every move is a Cromwell move, so whatever size the search
+reports is realised by an honest grid diagram of $K$, and
+\[
+\alpha(K) \;\leq\; \texttt{simplify}(\pi) \;\leq\; n.
+\]
+Stabilisation matters. Without it the search is monotone, and monotone
+simplification is not complete --- Dynnikov's theorem~\cite{Dynnikov}
+guarantees it only for the unknot. In practice the monotone version
+plateaus one above the truth on a handful of knots; with stabilisation
+enabled the search reaches the published arc index on every knot in
+Section~\ref{sec:arc-table}.
+
+\section{The \texttt{arc\_index} tool}
+
+\begin{lstlisting}[style=shell]
+./arc_index --perm "1 3 5 2 4"      # one permutation
+./arc_index --sweep 7               # all rotation-orbit reps of length 7
+./arc_index --tabulate FILE.tsv     # arc index by crossing number
+./arc_index --verify 7              # check the petal->grid map
+\end{lstlisting}
+
+\noindent
+\texttt{--perm} prints the grid, both before and after simplification:
+
+\begin{lstlisting}[style=shell]
+permutation      1 3 5 2 4
+grid size        5   (so arc index <= 5)
+components       1
+grid crossings   4
+X = [1 5 4 3 2], O = [3 2 1 5 4]
+
+. X . O .
+. . X . O
+O . . X .
+. O . . X
+X . O . .
+
+knot             m3.1
+crossing number  3
+Bae-Park alpha   5   (matches search)
+
+arc index <= 5
+\end{lstlisting}
+
+\noindent
+This is the standard $5 \times 5$ grid presentation of the trefoil, and the
+trefoil's arc index really is $5$. The grid is already minimal, so
+simplification leaves it alone.
+
+\section{Validating the construction}\label{sec:arc-validation}
+
+Two independent checks, in the same spirit as the cross-validation of
+Section~\ref{sec:crossval}.
+
+\paragraph{The Cromwell moves preserve knot type.}
+\texttt{test\_grid\_moves.cpp} takes every rotation-orbit rep of length $n$
+and names the knot three ways: straight from the petal grid, after three
+random stabilisations, and after a full \texttt{simplify} run. A move that
+quietly changed the knot type would corrupt every arc index in this chapter
+without crashing anything, so this is the test that has to pass first. All
+$720$ grids at $n = 7$ agree on all three names.
+
+\paragraph{The petal-to-grid map preserves knot type.}
+\texttt{--verify N} names the same permutation twice: once through
+\texttt{petal\_star\_clean}, and once through the grid polygon. If
+Proposition~\ref{prop:petal-grid} is right --- including the column
+ordering, which is where a mirror could sneak in --- the two names must
+agree, chirality and all. They do: $24$ of $24$ at $n = 5$ and $720$ of
+$720$ at $n = 7$, with no mismatches, and with \texttt{p3.1} and
+\texttt{m3.1} landing on the correct sides.
+
+\paragraph{The search reproduces Bae--Park.}
+The second check is a genuine prediction rather than a consistency test.
+
+\begin{theorem}[Bae--Park~\cite{BaePark}; conjectured by Cromwell]
+For a prime alternating knot $K$, $\alpha(K) = c(K) + 2$.
+\end{theorem}
+
+\begin{theorem}[Jin--Park~\cite{JinPark}]
+A prime link $L$ is non-alternating if and only if $\alpha(L) \leq c(L)$.
+\end{theorem}
+
+\noindent
+The two together say that arc index and crossing number carry the same
+information for alternating knots and genuinely different information
+otherwise, which is the reason to tabulate them against each other at all.
+
+\texttt{knoodleidentify} already reports both the crossing number and the
+alternating flag (they are the first and third fields of its
+\texttt{KnotSymbol}), so every alternating row of a sweep comes with a
+predicted arc index that the search knows nothing about.
+
+\begin{center}
+\begin{tabular}{@{}rrrr@{}}
+\hline
+$n$ & rows & Bae--Park checkable & agreeing \\
+\hline
+$7$ & $720$   & $718$   & $718$   \\
+$9$ & $40320$ & $39202$ & $39202$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+No disagreements. The rows that are not checkable are the non-alternating
+knots and the composites, for which Bae--Park predicts nothing --- but
+composites are not a free pass either, because arc index is additive on
+connected sums,
+\[
+\alpha(K_1 \# K_2) = \alpha(K_1) + \alpha(K_2) - 2,
+\]
+and \texttt{--tabulate} checks that too whenever both factors were seen on
+their own. It holds on every composite in the $n = 9$ sweep: for instance
+$\alpha(3_1 \# 3_1) = 8 = 5 + 5 - 2$ and
+$\alpha(3_1 \# 4_1) = 9 = 5 + 6 - 2$.
+
+\section{Arc index by crossing number}\label{sec:arc-table}
+
+\texttt{--tabulate} collapses a sweep to one row per knot type, keeping the
+smallest arc index found for that type over all the permutations that
+produced it --- different permutations give different presentations of the
+same knot, and the invariant is the minimum --- and then groups by crossing
+number. The $n = 9$ sweep, $40320$ rotation-orbit representatives, yields
+$14$ distinct (crossing number, arc index) pairs:
+
+\begin{center}
+\begin{tabular}{@{}rrrl@{}}
+\hline
+$c$ & $\alpha$ & count & knots \\
+\hline
+$0$  & $2$ & $1$  & unknot \\
+$3$  & $5$ & $2$  & $3_1$ and mirror \\
+$4$  & $6$ & $1$  & $4_1$ \\
+$5$  & $7$ & $4$  & $5_1, 5_2$ and mirrors \\
+$6$  & $8$ & $8$  & $6_1, 6_2, 6_3$, $3_1 \# 3_1$, $3_1 \# \overline{3_1}$, and mirrors \\
+$7$  & $9$ & $16$ & $7_1, \dots, 7_7$, $3_1 \# 4_1$, and mirrors \\
+$8$  & $7$ & $2$  & $8_{19}$ and mirror \\
+$8$  & $8$ & $4$  & $8_{20}, 8_{21}$ and mirrors \\
+$9$  & $8$ & $4$  & $9_{42}, 9_{46}$ and mirrors \\
+$9$  & $9$ & $6$  & $9_{43}, 9_{44}, 9_{45}$ and mirrors \\
+$10$ & $8$ & $2$  & $10_{124}$ and mirror \\
+$10$ & $9$ & $12$ & $10_{128}, 10_{132}, 10_{139}, 10_{140}, 10_{145}, 10_{161}$, mirrors \\
+$11$ & $9$ & $2$  & $11n_{118}$ and mirror \\
+$12$ & $9$ & $4$  & $12n_{242}, 12n_{591}$ and mirrors \\
+\hline
+\end{tabular}
+\end{center}
+
+Three things are worth reading off this table.
+
+\paragraph{The alternating rows are forced.} Crossing numbers $0$ through
+$7$ contribute one row each, with $\alpha = c + 2$ exactly. For alternating
+knots the two invariants are the same information, and the table is
+Bae--Park in tabular form.
+
+\paragraph{The non-alternating rows are not.} From $c = 8$ onward a single
+crossing number splits across several arc indices, and every value is at
+most $c$, as Jin--Park requires. The split is sharp enough to separate
+knots that crossing number alone cannot: $8_{19}$, $8_{20}$ and $8_{21}$
+all have $c = 8$, but $\alpha(8_{19}) = 7$ while
+$\alpha(8_{20}) = \alpha(8_{21}) = 8$. Every one of these values matches
+the published tables, including the counts: Jin and
+Park~\cite{JinPark} record exactly one knot with $c = 8, \alpha = 7$ and
+two with $c = 8, \alpha = 8$, and exactly two with $c = 9, \alpha = 8$,
+which is what the sweep finds.
+
+\paragraph{The bound $\alpha \leq n$ bites.} Every arc index in the table
+is at most $9$, as Proposition~\ref{prop:petal-grid} demands at $n = 9$.
+This is a real restriction on what a nine-petal permutation can present,
+not a coincidence of the sample: it is why $12n_{242}$, a twelve-crossing
+knot, appears at all --- its arc index is small enough to fit --- while
+most twelve-crossing knots cannot appear at $n = 9$ at any permutation. The
+table is therefore as much a statement about petal presentations as about
+arc index.
+
+For comparison, the $n = 7$ sweep produces only the first five crossing
+numbers plus $8_{19}$, which is the smallest non-alternating knot and the
+only interesting row at that size.
+
+\section{Arc index and the torus-knot conjecture}
+
+The torus knots of Section~\ref{sec:torus-conj} have a closed-form arc
+index, which turns the arc index column into a cheap consistency check on
+that conjecture.
+
+\begin{theorem}
+For $2 \leq p < q$, $\alpha(T(p,q)) = p + q$.
+\end{theorem}
+
+So $\alpha(T(2,3)) = 5$, $\alpha(T(2,5)) = 7$, $\alpha(T(3,4)) = 7$ and
+$\alpha(T(3,5)) = 8$, all of which the sweep reproduces. Running
+\texttt{--perm} on a constant-difference permutation therefore gives a
+second, invariant-based signal alongside \texttt{torus\_match}: if
+$\pi^{(d)}$ at length $n$ really is a torus knot $T(p,q)$, the arc-index
+search must return $p + q$, and since $\alpha \leq n$ by
+Proposition~\ref{prop:petal-grid} this immediately constrains which
+$T(p,q)$ can appear at a given $n$. This is not idle: an earlier draft of
+Section~\ref{sec:torus-conj} labelled the $n = 9$, $d = 4$ permutation a
+conjectured $T(4,9)$. That is impossible, because $T(4,9)$ has
+$\alpha = 13 > 9$. The search returns $\alpha = 9$, and the only torus
+knot with $\alpha = 9$ and $15$ crossings is $T(4,5)$ --- which
+\texttt{torus\_match} then confirms from the Alexander polynomial. Arc
+index found the error; the Alexander polynomial supplied the correction.
+
+\section{Limitations}
+
+\begin{itemize}[leftmargin=2em]
+\item The search gives an upper bound, not a certificate. Making it exact
+needs a lower bound; the standard one is the Morton--Beltrami inequality
+$\alpha(K) \geq \operatorname{spread}_a F_K(a,z) + 2$~\cite{MortonBeltrami} from the Kauffman
+polynomial, which Knoodle does not currently compute.
+\item The search is a heuristic walk, not an exhaustive one. It agrees with
+the published arc index on every knot reached so far, but nothing forces
+that to continue at larger $n$; a row whose value is one too high would
+show up as a violated Bae--Park or additivity prediction, which is why
+those checks are printed alongside the table rather than suppressed.
+\item Everything here is keyed to knots; grid diagrams describe links just
+as well, and \texttt{componentCount} is already in place, but the
+identification pipeline downstream is knot-only.
 \end{itemize}
 
 \chapter{Current State and Next Steps}\label{chap:state}
@@ -850,6 +1287,16 @@ under the combined position-rotation $\times$ value-shift equivalence;
 reproduces the $4492$-row \texttt{rclass9} reference format for $n = 9$.
 \item \texttt{file\_compare.cpp}: whitespace-insensitive file diff, used
 for cross-validation against external reference data.
+\item \texttt{grid\_diagram.hpp} and \texttt{arc\_index.cpp}: grid diagrams
+and arc index (Chapter~\ref{chap:arcindex}). A petal permutation is read
+directly as an arc presentation, giving $\alpha(K) \leq n$, and Cromwell
+moves drive the bound down. Validated against Bae--Park on all $720$
+rotation-orbit reps at $n = 7$.
+\item \texttt{knot\_naming.hpp}: the compact-name conversion of
+Section~\ref{sec:compact}, factored out of \texttt{sample\_const\_diff.cpp}
+so new tools share one copy of the chirality convention.
+\item \texttt{test\_grid\_moves.cpp}: regression test for the Cromwell
+moves, run over every length-$n$ petal permutation.
 \end{itemize}
 The TSV output of \texttt{petal\_star\_clean} feeds
 \texttt{knoodlesimplify} and \texttt{knoodleidentify}, giving a
@@ -881,6 +1328,12 @@ orbit count reaches $10! = 3.6$M, which is on the edge of feasibility
 for the current shell-out driver. A streaming or in-process
 integration with \texttt{knoodleidentify} (avoiding process startup
 per permutation) is the natural performance improvement.
+\item \textbf{A lower bound for arc index.} The search of
+Section~\ref{sec:arc-search} returns an upper bound only. Implementing the
+Kauffman polynomial $F_K(a,z)$ in Knoodle would supply the Morton--Beltrami
+lower bound $\alpha(K) \geq \operatorname{spread}_a F_K + 2$~\cite{MortonBeltrami}
+and turn the tables of Section~\ref{sec:arc-table} into certified values
+rather than bounds that happen to be sharp.
 \item \textbf{Cataloguing under further symmetries.} The
 \texttt{PetalPermutation} class already computes symmetry orbits under
 reversal and inversion; these can drive an even coarser enumeration
@@ -894,6 +1347,37 @@ level of granularity.
 C.~Adams, T.~Crawford, B.~DeMeo, et al.,
 \emph{Knot projections with a single multi-crossing},
 J.\ Knot Theory Ramifications \textbf{24} (2015), no.~3.
+
+\bibitem{BaePark}
+Y.~Bae and C.~Y.~Park,
+\emph{An upper bound of arc index of links},
+Math.\ Proc.\ Cambridge Philos.\ Soc.\ \textbf{129} (2000), 491--500.
+
+\bibitem{Beltrami}
+E.~Beltrami,
+\emph{Arc index of non-alternating links},
+J.\ Knot Theory Ramifications \textbf{11} (2002), 431--444.
+
+\bibitem{Cromwell}
+P.~R.~Cromwell,
+\emph{Embedding knots and links in an open book I: Basic properties},
+Topology Appl.\ \textbf{64} (1995), 37--58.
+
+\bibitem{Dynnikov}
+I.~A.~Dynnikov,
+\emph{Arc-presentations of links: monotonic simplification},
+Fund.\ Math.\ \textbf{190} (2006), 29--76.
+
+\bibitem{JinPark}
+G.~T.~Jin and W.~K.~Park,
+\emph{Prime knots with arc index up to 11 and an upper bound of arc index
+for non-alternating knots},
+J.\ Knot Theory Ramifications \textbf{19} (2010), 1655--1672.
+
+\bibitem{MortonBeltrami}
+H.~R.~Morton and E.~Beltrami,
+\emph{Arc index and the Kauffman polynomial},
+Math.\ Proc.\ Cambridge Philos.\ Soc.\ \textbf{123} (1998), 41--48.
 
 \bibitem{Kawauchi}
 A.~Kawauchi,

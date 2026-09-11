@@ -1,0 +1,21 @@
+crossings	arc_index	count	knots
+0	2	1	a0.1
+3	5	2	m3.1,p3.1
+4	6	1	a4.1
+5	7	4	m5.1,m5.2,p5.1,p5.2
+8	7	2	m8.19,p8.19
+
+# Prediction check: prime alternating knots satisfy alpha = c + 2
+# (Bae-Park); connected sums satisfy alpha(K1 # K2) = alpha(K1) + alpha(K2) - 2;
+# prime non-alternating knots satisfy alpha <= c (Jin-Park).
+knot	crossings	alternating	alpha_found	predicted	status
+a0.1	0	yes	2	2	ok
+a4.1	4	yes	6	6	ok
+m3.1	3	yes	5	5	ok
+m5.1	5	yes	7	7	ok
+m5.2	5	yes	7	7	ok
+m8.19	8	no	7	10	ok (Jin-Park)
+p3.1	3	yes	5	5	ok
+p5.1	5	yes	7	7	ok
+p5.2	5	yes	7	7	ok
+p8.19	8	no	7	10	ok (Jin-Park)
