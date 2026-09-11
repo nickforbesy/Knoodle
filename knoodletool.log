@@ -1,0 +1,20 @@
+knoodletool in stream mode, expect input from stdin, will direct output to stdout
+
+=== Processing Report: stdin ===
+
+Simplification: Reapr (max attempts: 25)
+
+Input:
+  Total crossings: 52
+  3D vertices: 40
+
+Output:
+  Total crossings: 26
+  Summands: 1
+  Proven minimal: 0/1 (0.0 %)
+  Simplification factor: 2.00x
+
+Timing:
+  Input:          9.7104e-05 s
+  Simplification: 1.3424e-02 s
+  Output:         1.4500e-05 s

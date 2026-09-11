@@ -250,32 +250,52 @@ buildReducedAlexanderAt(const std::vector<Crossing>& X,
 // Returns 0 if matrix is singular at this t.
 // ---------------------------------------------------------------------------
 
-static i64 detBareiss(std::vector<std::vector<i64>> M) {
-    int n = static_cast<int>(M.size());
-    if (n == 0) return 1;
-    i64 prev = 1;
-    int sign = 1;
-    for (int i = 0; i < n; ++i) {
-        if (M[i][i] == 0) {
-            int piv = -1;
-            for (int k = i + 1; k < n; ++k) {
-                if (M[k][i] != 0) { piv = k; break; }
-            }
-            if (piv == -1) return 0;
-            std::swap(M[i], M[piv]);
-            sign = -sign;
-        }
-        for (int j = i + 1; j < n; ++j) {
-            for (int k = i + 1; k < n; ++k) {
-                // (M[i][i] * M[j][k] - M[j][i] * M[i][k]) / prev
-                // is exact integer (Bareiss).
-                M[j][k] = (M[i][i] * M[j][k] - M[j][i] * M[i][k]) / prev;
-            }
-            M[j][i] = 0;
-        }
-        prev = M[i][i];
+static i64 modPow(i64 b, i64 e, i64 p) {
+    i64 r = 1; b %= p;
+    while (e > 0) {
+        if (e & 1) r = static_cast<i64>((__int128)r * b % p);
+        b = static_cast<i64>((__int128)b * b % p);
+        e >>= 1;
     }
-    return sign * M[n - 1][n - 1];
+    return r;
+}
+
+static i64 modInv(i64 a, i64 p) {
+    a %= p; if (a < 0) a += p;
+    return modPow(a, p - 2, p);           // p prime
+}
+
+// Determinant mod p by Gaussian elimination. The old fraction-free Bareiss
+// version overflowed int64 once the diagram had more than ~13 crossings
+// (the intermediate minors grow like t^n); working modulo a word-sized
+// prime keeps every intermediate bounded by p^2, and the true integer
+// coefficients are recovered afterwards by CRT.
+static i64 detMod(std::vector<std::vector<i64>> M, i64 p) {
+    const int n = static_cast<int>(M.size());
+    if (n == 0) return 1 % p;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j) {
+            M[i][j] %= p;
+            if (M[i][j] < 0) M[i][j] += p;
+        }
+    i64 det = 1;
+    for (int i = 0; i < n; ++i) {
+        int piv = -1;
+        for (int k = i; k < n; ++k) if (M[k][i] != 0) { piv = k; break; }
+        if (piv == -1) return 0;
+        if (piv != i) { std::swap(M[i], M[piv]); det = p - det; if (det == p) det = 0; }
+        det = static_cast<i64>((__int128)det * M[i][i] % p);
+        const i64 inv = modInv(M[i][i], p);
+        for (int j = i + 1; j < n; ++j) {
+            if (M[j][i] == 0) continue;
+            const i64 f = static_cast<i64>((__int128)M[j][i] * inv % p);
+            for (int k = i; k < n; ++k) {
+                M[j][k] = static_cast<i64>((M[j][k] - (__int128)f * M[i][k]) % p);
+                if (M[j][k] < 0) M[j][k] += p;
+            }
+        }
+    }
+    return det;
 }
 
 // ---------------------------------------------------------------------------
@@ -288,64 +308,66 @@ static i64 detBareiss(std::vector<std::vector<i64>> M) {
 // points around 0 and the answer is integer.
 // ---------------------------------------------------------------------------
 
-struct Rat { __int128 num; __int128 den; };  // den > 0 always
-static Rat ratMake(__int128 n, __int128 d) {
-    if (d < 0) { n = -n; d = -d; }
-    if (n == 0) return {0, 1};
-    __int128 g;
-    {   __int128 a = n < 0 ? -n : n, b = d;
-        while (b) { __int128 r = a % b; a = b; b = r; }
-        g = a;
-    }
-    return { n / g, d / g };
-}
-static Rat ratAdd(Rat a, Rat b) {
-    return ratMake(a.num * b.den + b.num * a.den, a.den * b.den);
-}
-static Rat ratMul(Rat a, Rat b) {
-    return ratMake(a.num * b.num, a.den * b.den);
-}
-
-static std::vector<i64> lagrangeInterpolate(const std::vector<i64>& xs,
-                                            const std::vector<i64>& ys) {
-    int m = static_cast<int>(xs.size());
-    // Build the polynomial in x via Lagrange:
-    //   p(x) = sum_i y_i * prod_{j != i} (x - x_j) / (x_i - x_j)
-    std::vector<Rat> coefs(m, {0, 1});
+// Lagrange interpolation modulo p, returning coefficients (lowest power
+// first) of the unique polynomial of degree <= xs.size()-1 through the
+// given points.
+static std::vector<i64> lagrangeInterpolateMod(const std::vector<i64>& xs,
+                                               const std::vector<i64>& ys,
+                                               i64 p) {
+    const int m = static_cast<int>(xs.size());
+    std::vector<i64> coefs(m, 0);
     for (int i = 0; i < m; ++i) {
-        // numerator polynomial = prod_{j != i} (x - x_j)
-        std::vector<Rat> num(1, {1, 1});
-        Rat denom = {1, 1};
+        // num(x) = prod_{j != i} (x - x_j),  denom = prod_{j != i} (x_i - x_j)
+        std::vector<i64> num(1, 1);
+        i64 denom = 1;
         for (int j = 0; j < m; ++j) {
             if (j == i) continue;
-            // multiply num by (x - xs[j])
-            std::vector<Rat> nx(num.size() + 1, {0, 1});
-            for (size_t k = 0; k < num.size(); ++k) {
-                nx[k + 1] = ratAdd(nx[k + 1], num[k]);
-                nx[k]     = ratAdd(nx[k], ratMul(num[k], {-(__int128)xs[j], 1}));
+            std::vector<i64> nx(num.size() + 1, 0);
+            i64 xj = xs[j] % p; if (xj < 0) xj += p;
+            for (std::size_t k = 0; k < num.size(); ++k) {
+                nx[k + 1] = (nx[k + 1] + num[k]) % p;
+                nx[k]     = (nx[k] - (__int128)num[k] * xj % p + p) % p;
             }
             num = std::move(nx);
-            denom = ratMul(denom, {(__int128)(xs[i] - xs[j]), 1});
+            i64 diff = (xs[i] - xs[j]) % p; if (diff < 0) diff += p;
+            denom = static_cast<i64>((__int128)denom * diff % p);
         }
-        Rat scale = ratMake((__int128)ys[i], 1);
-        scale = ratMul(scale, ratMake(1, denom.num));  // divide by denom
-        // denom is integer with sign in num
-        scale.den *= denom.den;
-        scale = ratMake(scale.num, scale.den);
-        for (size_t k = 0; k < num.size(); ++k) {
-            coefs[k] = ratAdd(coefs[k], ratMul(num[k], scale));
-        }
+        i64 yi = ys[i] % p; if (yi < 0) yi += p;
+        const i64 scale = static_cast<i64>((__int128)yi * modInv(denom, p) % p);
+        for (std::size_t k = 0; k < num.size(); ++k)
+            coefs[k] = static_cast<i64>((coefs[k] + (__int128)num[k] * scale) % p);
     }
+    return coefs;
+}
+
+// Primes just under 2^31, so products fit comfortably in __int128 and the
+// combined modulus (~9.9e27) dwarfs any Alexander coefficient we meet.
+static const i64 CRT_PRIMES[3] = { 2147483647LL, 2147483629LL, 2147483587LL };
+
+// Combine per-prime residues into the true integer coefficients, taking
+// symmetric representatives so negative coefficients come back correctly.
+static std::vector<i64> crtLift(const std::vector<std::vector<i64>>& residues) {
+    const std::size_t m = residues[0].size();
+    __int128 M = 1;
+    for (i64 pr : CRT_PRIMES) M *= pr;
+
     std::vector<i64> out(m);
-    for (int k = 0; k < m; ++k) {
-        if (coefs[k].den != 1) {
-            throw std::runtime_error("Interpolation produced non-integer coefficient -- bug.");
+    for (std::size_t k = 0; k < m; ++k) {
+        __int128 acc = 0;
+        for (int i = 0; i < 3; ++i) {
+            const i64 p  = CRT_PRIMES[i];
+            const __int128 Mi = M / p;
+            const i64 Mi_mod = static_cast<i64>(Mi % p);
+            const i64 inv = modInv(Mi_mod, p);
+            const i64 term = static_cast<i64>((__int128)residues[i][k] * inv % p);
+            acc = (acc + Mi * term) % M;
         }
-        __int128 v = coefs[k].num;
-        if (v > std::numeric_limits<i64>::max() || v < std::numeric_limits<i64>::min()) {
-            throw std::runtime_error("Coefficient overflow -- knot too large for this build.");
+        if (acc > M / 2) acc -= M;          // symmetric representative
+        if (acc > static_cast<__int128>(std::numeric_limits<i64>::max()) ||
+            acc < static_cast<__int128>(std::numeric_limits<i64>::min())) {
+            throw std::runtime_error("Coefficient too large for int64 -- add another CRT prime.");
         }
-        out[k] = static_cast<i64>(v);
+        out[k] = static_cast<i64>(acc);
     }
     return out;
 }
@@ -419,6 +441,7 @@ int main(int argc, char* argv[]) {
             std::cout << "Crossings : 0\n";
             std::cout << "Delta(t)  : 1\n";
             std::cout << "Knot      : 0_1 (unknot)\n";
+            std::cout << "Coefs     : [1]\n";
             return 0;
         }
 
@@ -436,15 +459,25 @@ int main(int argc, char* argv[]) {
         // actually have degree exactly n-1 only when every row contributes
         // a t-factor, but we don't need to be tight here).
         const int numPoints = std::max(2, 2 * n - 1);
-        std::vector<i64> xs, ys;
-        for (int k = 0; k < numPoints; ++k) {
-            i64 t = static_cast<i64>(k - numPoints / 2);  // centered around 0
-            auto M = buildReducedAlexanderAt(X, arc_of, t);
-            ys.push_back(detBareiss(std::move(M)));
-            xs.push_back(t);
+        std::vector<i64> xs;
+        for (int k = 0; k < numPoints; ++k)
+            xs.push_back(static_cast<i64>(k - numPoints / 2));  // centered on 0
+
+        // Evaluate det A(t) modulo each CRT prime, interpolate mod that
+        // prime, then lift. This replaces the old int64 Bareiss + rational
+        // Lagrange path, which overflowed past ~13 crossings.
+        std::vector<std::vector<i64>> residues;
+        for (i64 pr : CRT_PRIMES) {
+            std::vector<i64> ys;
+            ys.reserve(xs.size());
+            for (i64 t : xs) {
+                auto M = buildReducedAlexanderAt(X, arc_of, t);
+                ys.push_back(detMod(std::move(M), pr));
+            }
+            residues.push_back(lagrangeInterpolateMod(xs, ys, pr));
         }
 
-        auto poly = lagrangeInterpolate(xs, ys);
+        auto poly = crtLift(residues);
         poly = normalize(std::move(poly));
 
         std::cout << "Crossings : " << n << "\n";
@@ -456,13 +489,17 @@ int main(int argc, char* argv[]) {
             std::cout << "Knot      : " << it->second << "\n";
         } else {
             std::cout << "Knot      : unknown (polynomial not in table)\n";
-            std::cout << "Coefs     : [";
-            for (size_t i = 0; i < poly.size(); ++i) {
-                if (i) std::cout << ", ";
-                std::cout << poly[i];
-            }
-            std::cout << "]\n";
         }
+
+        // Always emit the coefficient list (lowest power first) so that
+        // downstream tools -- notably torus_match -- can consume it without
+        // re-parsing the pretty-printed polynomial.
+        std::cout << "Coefs     : [";
+        for (size_t i = 0; i < poly.size(); ++i) {
+            if (i) std::cout << ", ";
+            std::cout << poly[i];
+        }
+        std::cout << "]\n";
         return 0;
     }
     catch (const std::exception& e) {

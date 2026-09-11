@@ -1,0 +1,467 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\Deltaa}{\Delta}
+\newcommand{\T}[2]{T(#1,#2)}
+\newcommand{\Cyc}[1]{\Phi_{#1}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Recognising Torus Knots from the Alexander Polynomial\\
+\large Justification for the \code{torus\_match} decision procedure}
+\author{Knoodle project}
+\date{2 September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note explains why the Alexander polynomial of a torus knot $\T{p}{q}$ has the
+closed form $(t^{pq}-1)(t-1)\big/\big((t^{p}-1)(t^{q}-1)\big)$, why that closed form
+yields a \emph{finite and exhaustive} test for torus-knot-hood at a given degree, and
+exactly where the program \code{torus\_match.cpp} converts that test into a verdict.
+The logical asymmetry of the two verdicts is emphasised: a negative answer
+(``not a torus knot'') is a proof, whereas a positive answer is only strong evidence.
+We then apply the criterion to the constant-difference petal permutations of length
+$n=13$ and show that four of the twelve are provably not torus knots, contradicting
+the conjecture recorded in the header of \code{sample\_const\_diff.cpp}.
+\end{abstract}
+
+\tableofcontents
+
+\section{Setting and notation}
+
+For coprime integers $1 < p < q$, the torus knot $\T{p}{q}$ is the simple closed curve
+on the standardly embedded torus in $S^{3}$ that wraps $p$ times in the meridional
+direction and $q$ times in the longitudinal direction. Coprimality is what makes the
+curve connected; if $\gcd(p,q)=g>1$ the same recipe produces a $g$-component link
+rather than a knot. Reversing the roles of $p$ and $q$ gives the same knot, so we fix
+the canonical order $p<q$.
+
+The Alexander polynomial $\Deltaa_{K}(t)$ of a knot $K$ is well defined only up to
+multiplication by a unit $\pm t^{k}$ of $\Z[t,t^{-1}]$. Throughout we work with the
+\emph{normalised} representative: the unique associate that is an honest polynomial
+with non-zero constant term and positive lowest coefficient. Two facts we use as
+standing sanity conditions are that $\Deltaa_{K}(1)=\pm 1$ and that $\Deltaa_{K}$ is
+palindromic, i.e.\ $\Deltaa_{K}(t) = \pm t^{\deg \Deltaa_{K}}\,\Deltaa_{K}(1/t)$.
+
+We write $\Cyc{d}(t)$ for the $d$-th cyclotomic polynomial, so that
+\begin{equation}\label{eq:cyclo}
+t^{n}-1 \;=\; \prod_{d \mid n} \Cyc{d}(t),
+\qquad
+\deg \Cyc{d} = \varphi(d).
+\end{equation}
+
+\section{The closed form}
+
+\subsection{Topological input}
+
+The single non-elementary ingredient is Milnor's fibration theorem applied to the
+Brieskorn singularity $f(z_{1},z_{2}) = z_{1}^{p} + z_{2}^{q}$. The link of this
+singularity, $f^{-1}(0)\cap S^{3}_{\varepsilon}$, is precisely $\T{p}{q}$. Milnor
+shows that the complement fibres over $S^{1}$, that the fibre $F$ (the Milnor fibre)
+has the homotopy type of a wedge of $\mu = (p-1)(q-1)$ circles, and that the
+characteristic polynomial of the monodromy $h_{*}\colon H_{1}(F) \to H_{1}(F)$ is the
+Alexander polynomial of the link. The eigenvalues of $h_{*}$ are the products of
+non-trivial roots of unity
+\begin{equation}\label{eq:eigen}
+\zeta_{p}^{\,i}\,\zeta_{q}^{\,j},
+\qquad 1 \le i \le p-1,\quad 1 \le j \le q-1,
+\end{equation}
+where $\zeta_{m} = e^{2\pi \mathrm{i}/m}$. Consequently
+\begin{equation}\label{eq:prod}
+\Deltaa_{\T{p}{q}}(t)
+\;=\;
+\prod_{i=1}^{p-1}\prod_{j=1}^{q-1}\bigl(t - \zeta_{p}^{\,i}\zeta_{q}^{\,j}\bigr).
+\end{equation}
+Everything below is elementary algebra applied to \eqref{eq:prod}. (An alternative
+derivation, avoiding singularity theory, computes a Seifert matrix for the standard
+genus-$\tfrac{1}{2}(p-1)(q-1)$ fibre surface, or reduces the Burau representation of
+the braid $(\sigma_{1}\cdots\sigma_{p-1})^{q}$; both give the same answer.)
+
+\subsection{Summing the product}
+
+\begin{theorem}\label{thm:closed}
+For coprime $1<p<q$,
+\[
+\Deltaa_{\T{p}{q}}(t)
+\;=\;
+\frac{(t^{pq}-1)\,(t-1)}{(t^{p}-1)\,(t^{q}-1)} ,
+\]
+and the right-hand side is a polynomial with integer coefficients of degree $(p-1)(q-1)$.
+\end{theorem}
+
+\begin{proof}
+Consider the map
+\[
+\alpha \colon \Z/p \times \Z/q \longrightarrow \mu_{pq},
+\qquad
+(i,j) \longmapsto \zeta_{p}^{\,i}\zeta_{q}^{\,j},
+\]
+where $\mu_{pq}$ denotes the group of $pq$-th roots of unity. Because $\gcd(p,q)=1$,
+the Chinese Remainder Theorem makes $\alpha$ a group isomorphism; in particular it is
+a bijection. Hence as $(i,j)$ ranges over all $pq$ pairs, $\zeta_{p}^{i}\zeta_{q}^{j}$
+ranges over each $pq$-th root of unity exactly once, giving
+\begin{equation}\label{eq:all}
+\prod_{i=0}^{p-1}\prod_{j=0}^{q-1}\bigl(t-\zeta_{p}^{\,i}\zeta_{q}^{\,j}\bigr)
+\;=\;
+\prod_{\omega \in \mu_{pq}} (t-\omega)
+\;=\;
+t^{pq}-1 .
+\end{equation}
+Now split the index set $\{0,\dots,p-1\}\times\{0,\dots,q-1\}$ into four blocks
+according to whether $i=0$ and whether $j=0$:
+\begin{align*}
+i=0,\ j=0:&\qquad t-1,\\[2pt]
+i=0,\ j\neq 0:&\qquad \prod_{j=1}^{q-1}\bigl(t-\zeta_{q}^{\,j}\bigr) \;=\; \frac{t^{q}-1}{t-1},\\[2pt]
+i\neq 0,\ j=0:&\qquad \prod_{i=1}^{p-1}\bigl(t-\zeta_{p}^{\,i}\bigr) \;=\; \frac{t^{p}-1}{t-1},\\[2pt]
+i\neq 0,\ j\neq 0:&\qquad P(t) \;:=\; \prod_{i=1}^{p-1}\prod_{j=1}^{q-1}\bigl(t-\zeta_{p}^{\,i}\zeta_{q}^{\,j}\bigr).
+\end{align*}
+Multiplying the four blocks and equating with \eqref{eq:all},
+\[
+t^{pq}-1
+\;=\;
+(t-1)\cdot\frac{t^{q}-1}{t-1}\cdot\frac{t^{p}-1}{t-1}\cdot P(t)
+\;=\;
+\frac{(t^{p}-1)(t^{q}-1)}{t-1}\cdot P(t).
+\]
+Solving for $P$ and comparing with \eqref{eq:prod} gives the stated formula. The
+product $P$ has $(p-1)(q-1)$ linear factors, so the degree is as claimed; it lies in
+$\Z[t]$ because it is a quotient of monic integer polynomials that divides exactly.
+\end{proof}
+
+\begin{corollary}[Cyclotomic form]\label{cor:cyclo}
+$\displaystyle \Deltaa_{\T{p}{q}}(t) \;=\; \prod_{\substack{d \,\mid\, pq \\ d \,\nmid\, p,\ d \,\nmid\, q}} \Cyc{d}(t).$
+\end{corollary}
+
+\begin{proof}
+Since $\gcd(p,q)=1$, every divisor of $pq$ factors uniquely as $d_{1}d_{2}$ with
+$d_{1}\mid p$ and $d_{2}\mid q$; moreover $\{d : d\mid p\} \cap \{d : d\mid q\} = \{1\}$.
+Partition the divisors of $pq$ into those dividing $p$, those dividing $q$ and
+exceeding $1$, and the rest. Using \eqref{eq:cyclo} and $\Cyc{1}(t)=t-1$,
+\[
+t^{pq}-1
+= \prod_{d \mid pq}\Cyc{d}
+= \underbrace{\Bigl(\prod_{d\mid p}\Cyc{d}\Bigr)}_{t^{p}-1}
+  \underbrace{\Bigl(\prod_{\substack{d\mid q \\ d>1}}\Cyc{d}\Bigr)}_{(t^{q}-1)/(t-1)}
+  \prod_{\substack{d\mid pq\\ d\nmid p,\ d\nmid q}}\Cyc{d}.
+\]
+Substituting into Theorem~\ref{thm:closed} cancels $(t^{p}-1)(t^{q}-1)/(t-1)$ against
+the same factor, leaving exactly the asserted product.
+\end{proof}
+
+Corollary~\ref{cor:cyclo} is the form used as an independent cross-check in the
+verification script: computing $\Deltaa_{\T{p}{q}}$ by exact division and by
+multiplying cyclotomics are genuinely different code paths, and they were confirmed
+to agree on all $163$ torus knots with $p\le 13$, $q<30$.
+
+\begin{corollary}[Degree and genus]\label{cor:deg}
+$\deg \Deltaa_{\T{p}{q}} = (p-1)(q-1)$. Since torus knots are fibred, the Seifert
+genus satisfies $g(\T{p}{q}) = \tfrac{1}{2}(p-1)(q-1)$ and $\deg\Deltaa = 2g$.
+\end{corollary}
+
+\begin{proof}
+Immediate from Theorem~\ref{thm:closed}. Via Corollary~\ref{cor:cyclo} it also follows
+from $\sum_{d\mid n}\varphi(d)=n$ and inclusion--exclusion:
+$\sum \varphi(d) = pq - p - q + 1 = (p-1)(q-1)$, the term $+1$ correcting for
+$d=1$ being counted in both $\{d\mid p\}$ and $\{d\mid q\}$.
+\end{proof}
+
+\begin{lemma}[Parity]\label{lem:parity}
+$\deg \Deltaa_{\T{p}{q}}$ is always even.
+\end{lemma}
+
+\begin{proof}
+$p$ and $q$ are coprime, so they are not both even. If both are odd, $(p-1)(q-1)$ is a
+product of two even numbers. If exactly one is even, say $p$, then $q-1$ is even. In
+either case the product is even. (This also follows from $\deg\Deltaa = 2g$.)
+\end{proof}
+
+\section{The decision procedure}
+
+\subsection{Finiteness of the candidate set}
+
+The whole method rests on the following observation: the degree of the input pins the
+candidates down to a handful.
+
+\begin{theorem}[Exhaustive candidate enumeration]\label{thm:finite}
+Let $K$ be a knot with normalised Alexander polynomial of degree $D>0$. If
+$K \cong \T{p}{q}$ for some coprime $1<p<q$, then
+\[
+(p-1) \mid D,
+\qquad
+q = \frac{D}{p-1}+1,
+\qquad
+2 \le p < \sqrt{D}+1 .
+\]
+In particular the number of candidate pairs is at most the number of divisors of $D$,
+and is bounded by $\sqrt{D}$.
+\end{theorem}
+
+\begin{proof}
+By Corollary~\ref{cor:deg}, $D=(p-1)(q-1)$, so $p-1$ divides $D$ and $q-1 = D/(p-1)$,
+giving the stated $q$. The canonical order $p<q$ is equivalent to $p-1<q-1=D/(p-1)$,
+i.e.\ $(p-1)^{2}<D$, i.e.\ $p<\sqrt{D}+1$.
+\end{proof}
+
+This is what makes a negative verdict a genuine proof rather than a failed search: the
+list of pairs to test is complete, not heuristic.
+
+\begin{proposition}[Asymmetry of the verdicts]\label{prop:asym}
+Let $K$ have normalised Alexander polynomial $\Deltaa_{K}$ of degree $D$, and let
+$\mathcal{C}(D)$ be the candidate set of Theorem~\ref{thm:finite}.
+\begin{enumerate}
+\item If $\Deltaa_{K} \neq \Deltaa_{\T{p}{q}}$ for every $(p,q)\in\mathcal{C}(D)$, then
+$K$ is \emph{not} a torus knot. This conclusion is rigorous.
+\item If $\Deltaa_{K} = \Deltaa_{\T{p}{q}}$ for some $(p,q)$, it does \emph{not} follow
+that $K \cong \T{p}{q}$. The Alexander polynomial does not separate knots.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+(1) is the contrapositive of Theorem~\ref{thm:finite} together with the fact that the
+Alexander polynomial is a knot invariant: were $K$ a torus knot, its parameters would
+have to lie in $\mathcal{C}(D)$ and its polynomial would have to match. (2) holds
+because $\Deltaa$ is not a complete invariant --- for instance every untwisted
+Whitehead double has $\Deltaa=1$, the same as the unknot.
+\end{proof}
+
+Proposition~\ref{prop:asym} is the reason the summary line of
+\code{sample\_const\_diff} is worded as ``\code{PROVABLY NOT torus}'' for the negative
+count while the positive count is reported merely as ``\code{torus or unknot}''.
+
+\begin{remark}
+A caveat that belongs with (1): the rigour is conditional on $\Deltaa_{K}$ having been
+computed correctly from a diagram genuinely representing $K$. The mathematics is
+airtight; the guarantee is only as strong as the upstream geometry and polynomial
+code. Section~\ref{sec:evidence} records what was done to test that.
+\end{remark}
+
+\subsection{Normalisation}
+
+Because $\Deltaa$ is defined only up to $\pm t^{k}$, comparison requires a canonical
+representative on both sides. The procedure divides out the largest power of $t$, then
+negates if necessary so that the lowest surviving coefficient is positive. Both the
+input polynomial and each $\Deltaa_{\T{p}{q}}$ are passed through the same
+normalisation, so equality testing is well defined.
+
+\subsection{The algorithm}
+
+\begin{enumerate}
+\item Read the coefficient list of $\Deltaa_{K}$, lowest power first; normalise; let
+$D$ be its degree.
+\item If $D=0$, report \emph{unknot} ($\Deltaa=1$).
+\item If $D$ is odd, report \emph{not a torus knot} --- justified by
+Lemma~\ref{lem:parity}, and reached without any search.
+\item Otherwise, for each $p$ with $2\le p\le p_{\max}$ such that $(p-1)\mid D$, set
+$q = D/(p-1)+1$; discard the pair unless $q>p$ and $\gcd(p,q)=1$; compute
+$\Deltaa_{\T{p}{q}}$ by Theorem~\ref{thm:closed} and compare.
+\item Report every match; if there are none, report \emph{not a torus knot}.
+\end{enumerate}
+
+\begin{remark}[The bound $p_{\max}$ is not a real restriction]
+The implementation defaults to $p_{\max}=64$, which at first sight looks like a
+truncation that could manufacture false negatives. It cannot, for degrees in any
+plausible range: the guard $q>p$ already forces $p<\sqrt{D}+1$ by
+Theorem~\ref{thm:finite}, so $p_{\max}=64$ is vacuous for every $D<63^{2}=3969$. The
+largest degree arising in the computations below is $30$, where the guard caps $p$ at
+$6$.
+\end{remark}
+
+\section{Where the code implements this}
+
+The decision procedure lives in \code{torus\_match.cpp}; the caller that turns it into
+a per-permutation column lives in \code{sample\_const\_diff.cpp}.
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}p{4.5cm}>{\raggedright\arraybackslash}p{6.6cm}@{}}
+\toprule
+\textbf{Location} & \textbf{Role} & \textbf{Correspondence} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{\code{torus\_match.cpp}} --- the decision procedure}\\[2pt]
+line 99 & \code{torusAlexander(p,q)} & Evaluates Theorem~\ref{thm:closed} by exact polynomial division. \\
+line 84 & \code{normalize} & Canonical representative modulo $\pm t^{k}$. \\
+line 226 & odd-degree exit & Lemma~\ref{lem:parity}. Emits \code{no -- odd degree}, exit status $2$. \\
+line 238 & \code{for (p = 2; p <= maxP; ++p)} & Enumerates $\mathcal{C}(D)$. \\
+line 240 & \code{if (deg \% pm != 0)} & Imposes $(p-1)\mid D$. \\
+line 242 & \code{if (q <= p) continue;} & Canonical order; supplies the $p<\sqrt{D}+1$ bound. \\
+line 243 & \code{if (gcdInt(p,q) != 1)} & Rejects links. \\
+line 245 & \code{hits.push\_back(...)} & Records a match. \\
+lines 265--267 & \code{if (hits.empty())} & \textbf{The negative verdict.} Emits \code{Torus : no -- no T(p,q) has this Alexander polynomial}, exit status $2$. \\[4pt]
+\midrule
+\multicolumn{3}{@{}l}{\emph{\code{sample\_const\_diff.cpp}} --- the caller}\\[2pt]
+line 225 & \code{torusViaAlexander} & Shells out to the pipeline and captures the label. \\
+line 339 & \code{else if (torus == "no") ++nonTorus;} & Counts negatives. \\
+lines 348--349 & summary line & Prints \code{PROVABLY NOT torus}. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Note that the two output columns are produced by two independent routes that never
+cross-check each other: the \code{knot} column is a lookup in the KLUT table via
+\code{knoodleidentify}, whereas the \code{torus\_type} column is the polynomial
+computation described here. This is deliberate --- the polynomial route remains
+meaningful exactly where the table route fails, namely above the table's crossing
+range --- but it does mean the two columns can disagree without either being wrong.
+
+\section{Worked examples: the constant-difference permutations at \texorpdfstring{$n=13$}{n=13}}
+
+The constant-difference petal permutation of length $n$ with step $d$, $\gcd(d,n)=1$, is
+$\pi_{i} = ((i-1)d \bmod n) + 1$. Running the pipeline over all $\varphi(13)=12$ steps
+gives the following.
+
+\begin{center}
+\begin{tabular}{@{}rlllr@{}}
+\toprule
+$d$ & KLUT name & $\Deltaa$ degree & verdict & diagram crossings \\
+\midrule
+1  & \code{a0.1}             & 0  & unknot   & 0 \\
+2  & \code{m7.1}             & 6  & $\T{2}{7}$ & 7 \\
+3  & \code{notfound[14]}     & 12 & $\T{3}{7}$ & 14 \\
+4  & \code{unidentified[19]} & 4  & \textbf{no} & 19 \\
+5  & \code{unidentified[26]} & 10 & \textbf{no} & 26 \\
+6  & \code{unidentified[35]} & 30 & $\T{6}{7}$ & 35 \\
+7  & \code{unidentified[35]} & 30 & $\T{6}{7}$ & 35 \\
+8  & \code{unidentified[26]} & 10 & \textbf{no} & 26 \\
+9  & \code{unidentified[19]} & 4  & \textbf{no} & 19 \\
+10 & \code{notfound[14]}     & 12 & $\T{3}{7}$ & 14 \\
+11 & \code{p7.1}             & 6  & $\T{2}{7}$ & 7 \\
+12 & \code{a0.1}             & 0  & unknot   & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Why \texorpdfstring{$d=4$}{d=4} and \texorpdfstring{$d=9$}{d=9} are not torus knots}
+
+Both give the normalised polynomial
+\[
+\Deltaa(t) \;=\; t^{4}-t^{2}+1 \;=\; \Cyc{12}(t),
+\qquad D=4 .
+\]
+By Theorem~\ref{thm:finite} the divisors of $D=4$ give $p-1\in\{1,2,4\}$, i.e.\
+$p\in\{2,3,5\}$:
+\begin{itemize}
+\item $p=2 \Rightarrow q=5$, coprime, $q>p$: \textbf{admissible}, the single candidate;
+\item $p=3 \Rightarrow q=3$, rejected by $q>p$ (indeed $\T{3}{3}$ is a three-component link);
+\item $p=5 \Rightarrow q=2$, rejected by $q>p$ (it is $\T{2}{5}$ again).
+\end{itemize}
+So the candidate set is $\mathcal{C}(4)=\{(2,5)\}$, and by Corollary~\ref{cor:cyclo}
+$\Deltaa_{\T{2}{5}} = \Cyc{10} = t^{4}-t^{3}+t^{2}-t+1$. Since
+$\Cyc{12}\neq\Cyc{10}$, no torus knot has this polynomial, and by
+Proposition~\ref{prop:asym}(1) the knot is provably not a torus knot.
+
+It is worth recording what the polynomial \emph{does} look like. As
+$\Deltaa_{3_{1}}(t) = t^{2}-t+1 = \Cyc{6}(t)$ and $\Cyc{6}(t^{2}) = t^{4}-t^{2}+1 = \Cyc{12}(t)$,
+we have $\Deltaa(t) = \Deltaa_{3_{1}}(t^{2})$. A substitution $t\mapsto t^{2}$ is the
+signature of a satellite with winding number $2$ --- the Alexander polynomial of a
+cable satisfies $\Deltaa_{C_{a,b}(K)}(t) = \Deltaa_{K}(t^{a})\,\Deltaa_{\T{a}{b}}(t)$ ---
+so these knots are consistent with being winding-number-$2$ satellites of the trefoil.
+That is a plausible structure for a petal construction to produce, and it is not a
+torus knot.
+
+\subsection{Why \texorpdfstring{$d=5$}{d=5} and \texorpdfstring{$d=8$}{d=8} are not torus knots}
+
+Both give
+\[
+\Deltaa(t) = t^{10}-14t^{9}+78t^{8}-221t^{7}+390t^{6}-467t^{5}+390t^{4}-221t^{3}+78t^{2}-14t+1,
+\]
+of degree $D=10$. The divisors give $p-1\in\{1,2,5,10\}$, i.e.\ $p\in\{2,3,6,11\}$:
+\begin{itemize}
+\item $p=2 \Rightarrow q=11$, coprime, $q>p$: \textbf{admissible};
+\item $p=3 \Rightarrow q=6$, rejected since $\gcd(3,6)=3\neq1$ (a link, not a knot);
+\item $p=6 \Rightarrow q=3$, rejected by $q>p$;
+\item $p=11 \Rightarrow q=2$, rejected by $q>p$.
+\end{itemize}
+So $\mathcal{C}(10)=\{(2,11)\}$ and $\Deltaa_{\T{2}{11}} = \Cyc{22} =
+t^{10}-t^{9}+t^{8}-\cdots-t+1$, all coefficients $\pm1$. The observed polynomial has a
+coefficient $-467$, so it is not $\Cyc{22}$, and the verdict is again a proof.
+
+As consistency checks, $\Deltaa(1)=1$ as required, the coefficient sequence is
+palindromic, and the determinant $|\Deltaa(-1)| = 1875 = 3\cdot 5^{4}$ is odd, as every
+knot determinant must be.
+
+\subsection{Consequence}
+
+The header of \code{sample\_const\_diff.cpp} describes the program as testing ``the
+conjecture that every constant-difference petal permutation produces a torus knot''.
+The rows $d\in\{4,5,8,9\}$ at $n=13$ refute that conjecture, as do $d\in\{4,7\}$ at
+$n=11$ and $d\in\{5,6,7,10,11,12\}$ at $n=17$. Interestingly $n=5,7,15$ produce torus
+knots throughout. Empirically the torus cases cluster at small $d$, at $d\approx n/2$,
+and at the mirrors $d \leftrightarrow n-d$; the failures occupy the bands in between.
+
+\section{Verification performed}\label{sec:evidence}
+
+Because a negative verdict is asserted as a proof, the supporting computation was
+tested rather than trusted.
+
+\begin{enumerate}
+\item \textbf{Matcher correctness.} $\Deltaa_{\T{p}{q}}$ was recomputed by two
+independent implementations --- exact division (Theorem~\ref{thm:closed}) and the
+cyclotomic product (Corollary~\ref{cor:cyclo}) --- and compared with the program's
+verdict for all $163$ torus knots with $p\le13$, $q<30$. There were no disagreements,
+and no two distinct torus knots in that range shared an Alexander polynomial.
+
+\item \textbf{Invariance.} The Alexander polynomial is a knot invariant, so it must not
+depend on which diagram the simplifier happens to produce. Eight independent randomised
+re-projections of each of several permutations yielded byte-identical coefficient lists
+in every case, including the degree-$30$ example.
+
+\item \textbf{Agreement with theory.} For the permutations whose verdict is positive,
+the computed polynomial was compared against the closed form, and the crossing number of
+the simplified diagram against the known crossing number
+$c(\T{p}{q}) = \min\{p(q-1),\,q(p-1)\}$:
+
+\begin{center}
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+case & claim & diagram crossings & $c(\T{p}{q})$ & $\deg\Deltaa$ & polynomial \\
+\midrule
+$n=9,\ d=4$  & $\T{4}{5}$ & 15 & 15 & 12 & exact match \\
+$n=11,\ d=5$ & $\T{5}{6}$ & 24 & 24 & 20 & exact match \\
+$n=13,\ d=3$ & $\T{3}{7}$ & 14 & 14 & 12 & exact match \\
+$n=13,\ d=6$ & $\T{6}{7}$ & 35 & 35 & 30 & exact match \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Reproducing a $31$-coefficient polynomial exactly, with the diagram's crossing count
+independently landing on the theoretical value, is strong evidence that the geometry
+pipeline and the polynomial routine are both faithful.
+
+\item \textbf{Axioms.} All $38$ polynomials arising for $n\in\{5,7,9,11,13\}$ satisfy
+$\Deltaa(1)=\pm1$ and are palindromic.
+\end{enumerate}
+
+\paragraph{Remaining gaps.} Two, stated plainly. First, the Alexander routine was
+validated \emph{indirectly}, by exact agreement with theory on knots whose answer is
+known, rather than by an independent reimplementation of Fox calculus over the PD code;
+that reimplementation is the one outstanding belt-and-braces check. Second, all figures
+above were produced through the local \code{identify\_knot} binary. The mathematics is
+independent of which program computes $\Deltaa$, but re-sourcing the polynomial from
+the library's own \code{src/KnotInvariants/Alexander.hpp} would remove the last
+dependence on non-upstream code.
+
+\begin{thebibliography}{9}
+\bibitem{milnor} J.~Milnor, \emph{Singular Points of Complex Hypersurfaces},
+Annals of Mathematics Studies 61, Princeton University Press, 1968.
+\bibitem{rolfsen} D.~Rolfsen, \emph{Knots and Links}, Publish or Perish, 1976.
+\bibitem{lickorish} W.\,B.\,R.~Lickorish, \emph{An Introduction to Knot Theory},
+Graduate Texts in Mathematics 175, Springer, 1997.
+\bibitem{burde} G.~Burde and H.~Zieschang, \emph{Knots}, de Gruyter Studies in
+Mathematics 5, 2nd ed., 2003.
+\end{thebibliography}
+
+\end{document}

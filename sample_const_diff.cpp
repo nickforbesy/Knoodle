@@ -151,6 +151,29 @@ static std::string torusAnnotation(const std::vector<KnotSummand>& summands) {
     return joined;
 }
 
+// ---------- unresolved results ----------
+
+// knoodleidentify reports knots it cannot name as NotFound[c, {...}] or
+// Unidentified[c, {...}], where c is the crossing count of the diagram it
+// got stuck on. Neither matches the KnotSymbol regex, so before this fix
+// they fell through parseSummands as an empty summand list -- which
+// knotCompact renders as "a0.1", the unknot. Every knot past the KLUT's
+// range was therefore silently recorded as trivial, and then counted as
+// confirming the torus conjecture. Detect them explicitly instead.
+static bool isUnresolved(const std::string& out, std::string& label) {
+    static const std::regex re(R"regex((NotFound|Unidentified)\[(\d+),)regex");
+    std::smatch m;
+    if (!std::regex_search(out, m, re)) return false;
+    label = (m[1].str() == "NotFound" ? "notfound[" : "unidentified[")
+          + m[2].str() + "]";
+    return true;
+}
+
+// The genuine unknot is knoodleidentify's empty result "<||>".
+static bool isTrueUnknot(const std::string& out) {
+    return out.find("<||>") != std::string::npos;
+}
+
 // ---------- combinatorics + shell helpers ----------
 
 static int gcd(int a, int b) {
@@ -192,6 +215,26 @@ static std::string runAndCapture(const std::string& cmd) {
             "Command exited with status " + std::to_string(status) + ": " + cmd);
     }
     return out;
+}
+
+// Decide the torus type from the Alexander polynomial rather than from a
+// name lookup. This works at any crossing count, including the cases the
+// KLUT cannot name, and a negative answer is rigorous: deg Delta =
+// (p-1)(q-1) leaves only finitely many candidate T(p,q), and torus_match
+// checks them all.
+static std::string torusViaAlexander(const std::string& tsv) {
+    const std::string cmd =
+        "knoodlesimplify --streaming-mode < " + tsv + " 2>/dev/null"
+        " | ./identify_knot 2>/dev/null"
+        " | ./torus_match --quiet 2>/dev/null";
+    FILE* p = popen(cmd.c_str(), "r");
+    if (!p) return "?";
+    std::string out;
+    char buf[512];
+    while (std::fgets(buf, sizeof(buf), p)) out += buf;
+    pclose(p);
+    while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
+    return out.empty() ? "?" : out;
 }
 
 static void printUsage(const std::string& prog) {
@@ -261,7 +304,7 @@ int main(int argc, char* argv[]) {
         *out << "n\td\tpermutation\tknot\ttorus_type\n";
 
         const std::string tmp_tsv = "/tmp/sample_const_diff.tsv";
-        int torusHits = 0, unknowns = 0;
+        int torusHits = 0, unknowns = 0, nonTorus = 0;
 
         for (int d : ds) {
             auto perm = constDiffPerm(n, d);
@@ -276,10 +319,25 @@ int main(int argc, char* argv[]) {
             std::string ki_out = runAndCapture(ki_cmd);
 
             auto summands = parseSummands(ki_out);
-            std::string knot  = knotCompact(summands);
-            std::string torus = torusAnnotation(summands);
-            if (torus == "?") ++unknowns;
-            else              ++torusHits;
+
+            std::string knot;
+            std::string unresolvedLabel;
+            if (!summands.empty()) {
+                knot = knotCompact(summands);
+            } else if (isTrueUnknot(ki_out)) {
+                knot = "a0.1";
+            } else if (isUnresolved(ki_out, unresolvedLabel)) {
+                knot = unresolvedLabel;      // NOT the unknot -- just unnamed
+            } else {
+                knot = "parse-error";
+            }
+
+            // Torus type always comes from the Alexander polynomial, which
+            // is defined regardless of whether the KLUT can name the knot.
+            std::string torus = torusViaAlexander(tmp_tsv);
+            if (torus == "?" || torus == "parse-error") ++unknowns;
+            else if (torus == "no")                     ++nonTorus;
+            else                                        ++torusHits;
 
             *out << n << '\t' << d << '\t' << perm_str << '\t'
                  << knot << '\t' << torus << '\n';
@@ -287,7 +345,8 @@ int main(int argc, char* argv[]) {
         }
 
         *out << "# summary: " << torusHits << "/" << ds.size()
-             << " recognized as torus/unknot, " << unknowns << " unknown\n";
+             << " torus or unknot, " << nonTorus
+             << " PROVABLY NOT torus, " << unknowns << " undetermined\n";
 
         std::remove(tmp_tsv.c_str());
         return 0;
